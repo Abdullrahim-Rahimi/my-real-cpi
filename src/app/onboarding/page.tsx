@@ -15,7 +15,8 @@ export default async function OnboardingPage() {
     await Promise.all([
       supabase
         .from("countries")
-        .select("code, iso3, name, currency, cpi_source, is_supported")
+        .select("code, iso3, name, currency, cpi_source, is_supported, region")
+        .order("region", { ascending: true })
         .order("name", { ascending: true })
         .returns<Country[]>(),
       supabase

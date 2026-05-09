@@ -8,6 +8,7 @@ export type Country = {
   currency: string | null;
   cpi_source: "oecd" | "eurostat" | "bls" | null;
   is_supported: boolean;
+  region: string;
 };
 
 export type CoicopCategory = {

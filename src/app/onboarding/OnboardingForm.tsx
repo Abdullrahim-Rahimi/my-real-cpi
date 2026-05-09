@@ -43,6 +43,27 @@ export function OnboardingForm({
   const currency = country?.currency ?? "";
   const isUnsupported = !!country && !country.is_supported;
 
+  // Group countries by region for the <optgroup>s. Supported countries float
+  // to the top of their region so the most useful options are easiest to find.
+  const countriesByRegion = useMemo(() => {
+    const groups = new Map<string, Country[]>();
+    for (const c of countries) {
+      if (!groups.has(c.region)) groups.set(c.region, []);
+      groups.get(c.region)!.push(c);
+    }
+    for (const list of groups.values()) {
+      list.sort((a, b) => {
+        if (a.is_supported !== b.is_supported) return a.is_supported ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+    }
+    // Stable region order (Eurostat is in Europe; show that first).
+    const order = ["Europe", "Americas", "Asia", "Africa", "Oceania"];
+    return order
+      .filter((r) => groups.has(r))
+      .map((r) => [r, groups.get(r)!] as const);
+  }, [countries]);
+
   const total = useMemo(
     () =>
       Object.values(spending).reduce(
@@ -67,11 +88,15 @@ export function OnboardingForm({
           <option value="" disabled>
             Select a country…
           </option>
-          {countries.map((c) => (
-            <option key={c.code} value={c.code}>
-              {c.name}
-              {c.is_supported ? "" : " — coming soon"}
-            </option>
+          {countriesByRegion.map(([region, list]) => (
+            <optgroup key={region} label={region}>
+              {list.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.name}
+                  {c.is_supported ? "" : " — coming soon"}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
         {isUnsupported && (
