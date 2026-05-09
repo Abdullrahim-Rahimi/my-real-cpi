@@ -1,0 +1,86 @@
+-- Country list. is_supported=true means our cron job currently ingests
+-- category-level CPI for that country. Sources:
+--   - 'eurostat': Eurostat HICP (prc_hicp_midx). Covers EU27, EEA (NO/IS),
+--                 Switzerland, UK, and EU candidate countries (TR, etc.).
+--   - 'oecd':     OECD SDMX prices dataset. Ingester is stubbed for now —
+--                 these countries are listed but is_supported=false until wired.
+--   - 'bls':      US BLS CPI-U. Same: stubbed, is_supported=false for now.
+-- Once the OECD/BLS ingesters are implemented, flip is_supported to true.
+
+insert into public.countries (code, iso3, name, currency, cpi_source, is_supported) values
+  -- Eurostat-covered (EU27 + EEA + UK + Switzerland + EU candidates)
+  ('GB', 'GBR', 'United Kingdom',         'GBP', 'eurostat', true),
+  ('NO', 'NOR', 'Norway',                 'NOK', 'eurostat', true),
+  ('IS', 'ISL', 'Iceland',                'ISK', 'eurostat', true),
+  ('CH', 'CHE', 'Switzerland',            'CHF', 'eurostat', true),
+  ('TR', 'TUR', 'Türkiye',                'TRY', 'eurostat', true),
+  -- OECD-covered (ingester not yet implemented — coming soon)
+  ('US', 'USA', 'United States',          'USD', 'bls',      false),
+  ('CA', 'CAN', 'Canada',                 'CAD', 'oecd',     false),
+  ('AU', 'AUS', 'Australia',              'AUD', 'oecd',     false),
+  ('NZ', 'NZL', 'New Zealand',            'NZD', 'oecd',     false),
+  ('JP', 'JPN', 'Japan',                  'JPY', 'oecd',     false),
+  ('KR', 'KOR', 'South Korea',            'KRW', 'oecd',     false),
+  ('IL', 'ISR', 'Israel',                 'ILS', 'oecd',     false),
+  ('MX', 'MEX', 'Mexico',                 'MXN', 'oecd',     false),
+  ('CL', 'CHL', 'Chile',                  'CLP', 'oecd',     false),
+  ('CO', 'COL', 'Colombia',               'COP', 'oecd',     false),
+  ('CR', 'CRI', 'Costa Rica',             'CRC', 'oecd',     false),
+  -- EU/EEA via Eurostat HICP
+  ('AT', 'AUT', 'Austria',                'EUR', 'eurostat', true),
+  ('BE', 'BEL', 'Belgium',                'EUR', 'eurostat', true),
+  ('BG', 'BGR', 'Bulgaria',               'BGN', 'eurostat', true),
+  ('HR', 'HRV', 'Croatia',                'EUR', 'eurostat', true),
+  ('CY', 'CYP', 'Cyprus',                 'EUR', 'eurostat', true),
+  ('CZ', 'CZE', 'Czechia',                'CZK', 'eurostat', true),
+  ('DK', 'DNK', 'Denmark',                'DKK', 'eurostat', true),
+  ('EE', 'EST', 'Estonia',                'EUR', 'eurostat', true),
+  ('FI', 'FIN', 'Finland',                'EUR', 'eurostat', true),
+  ('FR', 'FRA', 'France',                 'EUR', 'eurostat', true),
+  ('DE', 'DEU', 'Germany',                'EUR', 'eurostat', true),
+  ('GR', 'GRC', 'Greece',                 'EUR', 'eurostat', true),
+  ('HU', 'HUN', 'Hungary',                'HUF', 'eurostat', true),
+  ('IE', 'IRL', 'Ireland',                'EUR', 'eurostat', true),
+  ('IT', 'ITA', 'Italy',                  'EUR', 'eurostat', true),
+  ('LV', 'LVA', 'Latvia',                 'EUR', 'eurostat', true),
+  ('LT', 'LTU', 'Lithuania',              'EUR', 'eurostat', true),
+  ('LU', 'LUX', 'Luxembourg',             'EUR', 'eurostat', true),
+  ('MT', 'MLT', 'Malta',                  'EUR', 'eurostat', true),
+  ('NL', 'NLD', 'Netherlands',            'EUR', 'eurostat', true),
+  ('PL', 'POL', 'Poland',                 'PLN', 'eurostat', true),
+  ('PT', 'PRT', 'Portugal',               'EUR', 'eurostat', true),
+  ('RO', 'ROU', 'Romania',                'RON', 'eurostat', true),
+  ('SK', 'SVK', 'Slovakia',               'EUR', 'eurostat', true),
+  ('SI', 'SVN', 'Slovenia',               'EUR', 'eurostat', true),
+  ('ES', 'ESP', 'Spain',                  'EUR', 'eurostat', true),
+  ('SE', 'SWE', 'Sweden',                 'SEK', 'eurostat', true),
+  -- Other large economies, currently unsupported (no auto-ingestion yet)
+  ('CN', 'CHN', 'China',                  'CNY', null, false),
+  ('IN', 'IND', 'India',                  'INR', null, false),
+  ('BR', 'BRA', 'Brazil',                 'BRL', null, false),
+  ('RU', 'RUS', 'Russia',                 'RUB', null, false),
+  ('ZA', 'ZAF', 'South Africa',           'ZAR', null, false),
+  ('NG', 'NGA', 'Nigeria',                'NGN', null, false),
+  ('KE', 'KEN', 'Kenya',                  'KES', null, false),
+  ('EG', 'EGY', 'Egypt',                  'EGP', null, false),
+  ('SA', 'SAU', 'Saudi Arabia',           'SAR', null, false),
+  ('AE', 'ARE', 'United Arab Emirates',   'AED', null, false),
+  ('ID', 'IDN', 'Indonesia',              'IDR', null, false),
+  ('PH', 'PHL', 'Philippines',            'PHP', null, false),
+  ('TH', 'THA', 'Thailand',               'THB', null, false),
+  ('VN', 'VNM', 'Vietnam',                'VND', null, false),
+  ('MY', 'MYS', 'Malaysia',               'MYR', null, false),
+  ('SG', 'SGP', 'Singapore',              'SGD', null, false),
+  ('HK', 'HKG', 'Hong Kong SAR',          'HKD', null, false),
+  ('TW', 'TWN', 'Taiwan',                 'TWD', null, false),
+  ('AR', 'ARG', 'Argentina',              'ARS', null, false),
+  ('PE', 'PER', 'Peru',                   'PEN', null, false),
+  ('PK', 'PAK', 'Pakistan',               'PKR', null, false),
+  ('BD', 'BGD', 'Bangladesh',             'BDT', null, false),
+  ('UA', 'UKR', 'Ukraine',                'UAH', null, false)
+on conflict (code) do update set
+  iso3         = excluded.iso3,
+  name         = excluded.name,
+  currency     = excluded.currency,
+  cpi_source   = excluded.cpi_source,
+  is_supported = excluded.is_supported;
