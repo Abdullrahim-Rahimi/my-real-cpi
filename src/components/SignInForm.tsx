@@ -1,11 +1,18 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { sendMagicLink, type SignInState } from "@/app/actions/auth";
 
 const initialState: SignInState = null;
 
 export function SignInForm() {
+  // Bumping `key` forces useActionState to reset to the input view when the
+  // user clicks "try a different email" after a successful send.
+  const [formKey, setFormKey] = useState(0);
+  return <SignInFormInner key={formKey} onReset={() => setFormKey((k) => k + 1)} />;
+}
+
+function SignInFormInner({ onReset }: { onReset: () => void }) {
   const [state, formAction, pending] = useActionState(sendMagicLink, initialState);
 
   if (state?.ok) {
@@ -15,6 +22,17 @@ export function SignInForm() {
         <p className="mt-1 text-sm opacity-90">
           We sent a sign-in link to <span className="font-medium">{state.email}</span>.
           The link expires in 1 hour.
+        </p>
+        <p className="mt-3 text-xs opacity-80">
+          Didn&apos;t arrive? Check spam, or{" "}
+          <button
+            type="button"
+            onClick={onReset}
+            className="underline underline-offset-2 hover:opacity-100"
+          >
+            try a different email
+          </button>
+          .
         </p>
       </div>
     );

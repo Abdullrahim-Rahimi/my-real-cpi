@@ -5,6 +5,7 @@ import {
   saveOnboarding,
   type OnboardingState,
 } from "@/app/actions/onboarding";
+import { formatCurrency } from "@/lib/format";
 import type { CoicopCategory, Country } from "@/lib/types";
 
 const initialState: OnboardingState = null;
@@ -149,12 +150,12 @@ export function OnboardingForm({
           ))}
         </div>
 
-        <div className="flex items-center justify-between rounded-xl bg-zinc-100 px-4 py-3 dark:bg-zinc-800/60">
+        <div className="sticky bottom-2 flex items-center justify-between rounded-xl border border-black/5 bg-white px-4 py-3 shadow-sm dark:border-white/10 dark:bg-zinc-900">
           <span className="text-sm text-zinc-600 dark:text-zinc-300">
             Monthly total
           </span>
           <span className="text-base font-semibold tabular-nums">
-            {currency} {total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            {formatCurrency(total, currency)}
           </span>
         </div>
       </section>

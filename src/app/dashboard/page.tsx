@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { computePersonalCpi } from "@/lib/cpi/calculate";
+import { formatCurrency, formatPercent, formatPeriod } from "@/lib/format";
 import type {
   CoicopCategory,
   Country,
@@ -10,20 +11,6 @@ import type {
 } from "@/lib/types";
 import { CategoryBreakdownChart } from "./DashboardCharts";
 import { signOut } from "@/app/actions/auth";
-
-function fmtPct(n: number | null | undefined, digits = 1) {
-  if (n == null || Number.isNaN(n)) return "—";
-  const sign = n > 0 ? "+" : "";
-  return `${sign}${n.toFixed(digits)}%`;
-}
-
-function fmtPeriod(d: string | null) {
-  if (!d) return "";
-  return new Date(d).toLocaleDateString(undefined, {
-    month: "long",
-    year: "numeric",
-  });
-}
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -121,7 +108,7 @@ export default async function DashboardPage() {
       <section className="mx-auto max-w-5xl px-5 pb-16">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           {country?.name}
-          {result.period ? ` · ${fmtPeriod(result.period)}` : ""}
+          {result.period ? ` · ${formatPeriod(result.period)}` : ""}
         </p>
 
         {!hasData ? (
@@ -142,7 +129,7 @@ export default async function DashboardPage() {
                   Your Real CPI (year-on-year)
                 </p>
                 <p className="mt-2 text-5xl font-semibold tabular-nums text-emerald-900 dark:text-emerald-100">
-                  {fmtPct(result.personal_yoy_pct)}
+                  {formatPercent(result.personal_yoy_pct)}
                 </p>
                 <p className="mt-2 text-xs text-emerald-800/80 dark:text-emerald-200/80">
                   Based on your spending mix · coverage{" "}
@@ -154,7 +141,7 @@ export default async function DashboardPage() {
                   Official headline CPI
                 </p>
                 <p className="mt-2 text-5xl font-semibold tabular-nums">
-                  {fmtPct(result.official_yoy_pct)}
+                  {formatPercent(result.official_yoy_pct)}
                 </p>
                 <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                   {country?.cpi_source
@@ -171,6 +158,31 @@ export default async function DashboardPage() {
                   : `You're feeling inflation about ${(result.official_yoy_pct - result.personal_yoy_pct).toFixed(1)} pp less than the official rate — your basket leans into slower-rising categories.`}
               </div>
             )}
+
+            <details className="mt-4 rounded-xl border border-black/5 bg-white px-4 py-3 text-sm text-zinc-700 shadow-sm dark:border-white/10 dark:bg-zinc-900/60 dark:text-zinc-200">
+              <summary className="cursor-pointer select-none font-medium">
+                Why is mine different from the official rate?
+              </summary>
+              <div className="mt-3 space-y-2 text-zinc-600 dark:text-zinc-400">
+                <p>
+                  The official CPI is a weighted average for the whole country,
+                  using a basket designed to represent average household
+                  spending. Your actual spending isn&apos;t average — so the
+                  inflation you experience usually isn&apos;t either.
+                </p>
+                <p>
+                  We compute your personal CPI as{" "}
+                  <code className="rounded bg-zinc-100 px-1 py-0.5 text-xs dark:bg-zinc-800">
+                    Σ (your weight × YoY for that category)
+                  </code>
+                  , using the same official category indices the headline number
+                  is built on. If you spend more than average on fast-rising
+                  categories (housing, food), your real CPI runs hotter. If you
+                  spend more on slow-rising ones (clothing, communication), it
+                  runs cooler.
+                </p>
+              </div>
+            </details>
 
             {/* Breakdown chart */}
             <section className="mt-10">
@@ -211,7 +223,7 @@ export default async function DashboardPage() {
                       <tr key={b.code}>
                         <td className="px-4 py-3 font-medium">{b.short_name}</td>
                         <td className="px-4 py-3 text-right tabular-nums">
-                          {currency} {b.user_amount.toLocaleString()}
+                          {formatCurrency(b.user_amount, currency)}
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums">
                           {(b.user_weight * 100).toFixed(1)}%
@@ -223,10 +235,10 @@ export default async function DashboardPage() {
                               : "text-emerald-700 dark:text-emerald-400"
                           }`}
                         >
-                          {fmtPct(b.yoy_pct, 2)}
+                          {formatPercent(b.yoy_pct, 2)}
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums">
-                          {fmtPct(b.contribution_pct, 2)}
+                          {formatPercent(b.contribution_pct, 2)}
                         </td>
                       </tr>
                     ))}
