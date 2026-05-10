@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import {
   approveBatch,
@@ -27,7 +28,21 @@ export function ApproveBatch(props: Props) {
   if (state?.ok) {
     return (
       <div className="rounded-2xl border border-emerald-300/40 bg-emerald-50 px-5 py-4 text-emerald-900 dark:border-emerald-600/40 dark:bg-emerald-950/40 dark:text-emerald-100">
-        Decision recorded. The data is now live on the dashboard (or rejected).
+        <p>Decision recorded. The data is now live on the dashboard (or rejected).</p>
+        <div className="mt-3 flex flex-wrap gap-3 text-sm">
+          <Link
+            href="/contribute/approve"
+            className="font-semibold underline underline-offset-2 hover:opacity-80"
+          >
+            Refresh queue
+          </Link>
+          <Link
+            href="/contribute"
+            className="opacity-80 hover:opacity-100"
+          >
+            Back to Contribute
+          </Link>
+        </div>
       </div>
     );
   }

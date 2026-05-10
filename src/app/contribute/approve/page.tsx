@@ -7,6 +7,7 @@ import type {
   CpiSubmissionRow,
 } from "@/lib/community/types";
 import { ApproveBatch } from "./ApproveBatch";
+import { signOut } from "@/app/actions/auth";
 
 type Batch = {
   key: string;
@@ -38,7 +39,7 @@ export default async function ApproveQueuePage() {
 
   const isApprover =
     hasActiveRole(myRoles, "approver") || hasActiveRole(myRoles, "moderator");
-  if (!isApprover) redirect("/contribute");
+  if (!isApprover) redirect("/contribute?reason=not_approver");
 
   const myCountry = activeContributorCountry(myRoles);
 
@@ -92,7 +93,14 @@ export default async function ApproveQueuePage() {
         <Link href="/contribute" className="font-semibold tracking-tight">
           ← Contribute
         </Link>
-        <span className="text-sm text-zinc-500 dark:text-zinc-400">Approver</span>
+        <div className="flex items-center gap-4 text-sm text-zinc-500 dark:text-zinc-400">
+          <span>Approver</span>
+          <form action={signOut}>
+            <button type="submit" className="hover:text-zinc-900 dark:hover:text-zinc-100">
+              Sign out
+            </button>
+          </form>
+        </div>
       </header>
 
       <section className="mx-auto max-w-4xl px-5 pb-16">
@@ -103,8 +111,24 @@ export default async function ApproveQueuePage() {
         </p>
 
         {batchList.length === 0 ? (
-          <div className="mt-10 rounded-2xl border border-black/5 bg-white p-6 text-center text-zinc-600 shadow-sm dark:border-white/10 dark:bg-zinc-900/60 dark:text-zinc-400">
-            Nothing waiting on you. 🎉
+          <div className="mt-10 rounded-2xl border border-black/5 bg-white p-6 text-center shadow-sm dark:border-white/10 dark:bg-zinc-900/60">
+            <p className="text-zinc-600 dark:text-zinc-400">
+              Nothing waiting on you. 🎉
+            </p>
+            <div className="mt-4 flex justify-center gap-4 text-sm">
+              <Link
+                href="/contribute"
+                className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-400 dark:hover:text-emerald-200"
+              >
+                Back to Contribute
+              </Link>
+              <Link
+                href="/dashboard"
+                className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+              >
+                Open dashboard
+              </Link>
+            </div>
           </div>
         ) : (
           <div className="mt-8 flex flex-col gap-6">

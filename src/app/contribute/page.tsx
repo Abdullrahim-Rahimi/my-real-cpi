@@ -12,12 +12,31 @@ import { ApplyContributorForm } from "./ApplyContributorForm";
 import { ApplyRoleForm } from "./ApplyRoleForm";
 import { signOut } from "@/app/actions/auth";
 
-export default async function ContributePage() {
+// Friendly explanations when a user lands here after a permission redirect.
+const REASON_MESSAGES: Record<string, string> = {
+  not_moderator:
+    "You don't have moderator access. The admin tools are only available to active moderators.",
+  not_contributor:
+    "You're not an active contributor yet. Apply for the country you live in below — once a moderator approves, you can submit data.",
+  not_reviewer:
+    "You don't have reviewer permissions yet. You'll need to be an active contributor for at least 30 days before applying.",
+  not_approver:
+    "You don't have approver permissions yet. You'll need to be an active contributor for at least 30 days before applying.",
+};
+
+export default async function ContributePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ reason?: string }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/?next=/contribute");
+
+  const { reason } = await searchParams;
+  const reasonMessage = reason ? REASON_MESSAGES[reason] : undefined;
 
   const [{ data: roleRows }, { data: countries }] = await Promise.all([
     supabase
@@ -88,6 +107,13 @@ export default async function ContributePage() {
           a reviewer in another country checks against the official source; an
           approver in a third country signs off.
         </p>
+
+        {/* Permission-redirect banner */}
+        {reasonMessage && (
+          <div className="mt-6 rounded-xl border border-amber-300/50 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-100">
+            {reasonMessage}
+          </div>
+        )}
 
         {/* Your roles */}
         {roles.length > 0 && (

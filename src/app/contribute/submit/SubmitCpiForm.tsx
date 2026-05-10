@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
 import {
   submitCpiBatch,
@@ -54,6 +55,20 @@ export function SubmitCpiForm({
           the dashboard once a reviewer and an approver from other countries
           sign off.
         </p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Link
+            href="/dashboard"
+            className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
+          >
+            Open dashboard
+          </Link>
+          <Link
+            href="/contribute"
+            className="rounded-xl border border-emerald-700/30 bg-white px-4 py-2 text-sm font-semibold text-emerald-900 shadow-sm transition hover:bg-emerald-50 dark:border-emerald-500/40 dark:bg-zinc-900 dark:text-emerald-100 dark:hover:bg-emerald-950/40"
+          >
+            Back to Contribute
+          </Link>
+        </div>
       </div>
     );
   }

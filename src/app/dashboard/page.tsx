@@ -159,6 +159,14 @@ export default async function DashboardPage() {
           >
             Contribute
           </Link>
+          {hasActiveRole(myRoles, "moderator") && (
+            <Link
+              href="/admin"
+              className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            >
+              Admin
+            </Link>
+          )}
           <form action={signOut}>
             <button
               type="submit"

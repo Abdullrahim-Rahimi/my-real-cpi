@@ -22,7 +22,7 @@ export default async function AdminLayout({
     .eq("user_id", user.id)
     .returns<CountryContributorRow[]>();
 
-  if (!isModerator(roles ?? [])) redirect("/contribute");
+  if (!isModerator(roles ?? [])) redirect("/contribute?reason=not_moderator");
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-emerald-50/60 text-zinc-900 dark:from-zinc-950 dark:to-emerald-950/30 dark:text-zinc-100">
@@ -41,6 +41,9 @@ export default async function AdminLayout({
               </Link>
               <Link href="/contribute" className="hover:text-zinc-900 dark:hover:text-zinc-100">
                 Contributor view
+              </Link>
+              <Link href="/dashboard" className="hover:text-zinc-900 dark:hover:text-zinc-100">
+                My dashboard
               </Link>
             </nav>
           </div>

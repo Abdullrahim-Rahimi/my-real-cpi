@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import {
   reviewBatch,
@@ -26,7 +27,21 @@ export function ReviewBatch(props: Props) {
   if (state?.ok) {
     return (
       <div className="rounded-2xl border border-emerald-300/40 bg-emerald-50 px-5 py-4 text-emerald-900 dark:border-emerald-600/40 dark:bg-emerald-950/40 dark:text-emerald-100">
-        Reviewed — moved to approval queue (or rejected).
+        <p>Reviewed — moved to the approval queue (or rejected).</p>
+        <div className="mt-3 flex flex-wrap gap-3 text-sm">
+          <Link
+            href="/contribute/review"
+            className="font-semibold underline underline-offset-2 hover:opacity-80"
+          >
+            Refresh queue
+          </Link>
+          <Link
+            href="/contribute"
+            className="opacity-80 hover:opacity-100"
+          >
+            Back to Contribute
+          </Link>
+        </div>
       </div>
     );
   }

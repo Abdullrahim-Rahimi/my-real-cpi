@@ -8,6 +8,7 @@ import type {
 } from "@/lib/community/types";
 import type { CoicopCategory, Country } from "@/lib/types";
 import { SubmitCpiForm } from "./SubmitCpiForm";
+import { signOut } from "@/app/actions/auth";
 
 export default async function ContributeSubmitPage() {
   const supabase = await createClient();
@@ -24,7 +25,7 @@ export default async function ContributeSubmitPage() {
 
   const country_code = activeContributorCountry(roles ?? []);
   if (!country_code) {
-    redirect("/contribute");
+    redirect("/contribute?reason=not_contributor");
   }
 
   const [{ data: country }, { data: categories }, { data: whitelist }] =
@@ -52,9 +53,14 @@ export default async function ContributeSubmitPage() {
         <Link href="/contribute" className="font-semibold tracking-tight">
           ← Contribute
         </Link>
-        <span className="text-sm text-zinc-500 dark:text-zinc-400">
-          {country?.name}
-        </span>
+        <div className="flex items-center gap-4 text-sm text-zinc-500 dark:text-zinc-400">
+          <span>{country?.name}</span>
+          <form action={signOut}>
+            <button type="submit" className="hover:text-zinc-900 dark:hover:text-zinc-100">
+              Sign out
+            </button>
+          </form>
+        </div>
       </header>
 
       <section className="mx-auto max-w-2xl px-5 pb-16">
