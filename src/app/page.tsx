@@ -52,18 +52,23 @@ export default async function Home({
           My Real CPI
         </Link>
         <nav className="flex items-center gap-5 text-sm text-zinc-600 dark:text-zinc-400">
-          <Link
+          {/*
+            Plain <a> tags for in-page anchors so the browser handles the scroll
+            natively. Next.js <Link> with hash-only href routes through the
+            router and inconsistently scrolls on Server Component pages.
+          */}
+          <a
             href="#how-it-works"
             className="hover:text-zinc-900 dark:hover:text-zinc-100"
           >
             How it works
-          </Link>
-          <Link
+          </a>
+          <a
             href="#contribute"
             className="hover:text-zinc-900 dark:hover:text-zinc-100"
           >
             Contribute
-          </Link>
+          </a>
         </nav>
       </header>
 
@@ -190,7 +195,7 @@ export default async function Home({
             </div>
             <div className="flex flex-col gap-2">
               <Link
-                href="/?next=/contribute#how-it-works"
+                href="/contribute"
                 className="rounded-xl bg-emerald-600 px-5 py-3 text-center font-semibold text-white shadow-sm transition hover:bg-emerald-500"
               >
                 Apply as a contributor
