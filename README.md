@@ -4,6 +4,8 @@ A mobile-friendly web app that lets anyone compute their **personal inflation ra
 
 The headline CPI uses an average national basket. Your spending isn't average — so the inflation you experience usually isn't either.
 
+> **Want the deep dive?** See [GUIDE.md](GUIDE.md) for architecture, schema, data sources, the community contribution model, deploy + ops, and troubleshooting.
+
 - **Frontend**: Next.js 15 (App Router) + React 19 + Tailwind v4
 - **Backend**: Supabase (Postgres + email magic-link auth + RLS)
 - **Charts**: Recharts
