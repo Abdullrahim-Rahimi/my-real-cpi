@@ -94,6 +94,12 @@ export default async function DashboardPage() {
           >
             Edit spending
           </Link>
+          <Link
+            href="/contribute"
+            className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+          >
+            Contribute
+          </Link>
           <form action={signOut}>
             <button
               type="submit"
