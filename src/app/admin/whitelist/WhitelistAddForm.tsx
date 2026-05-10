@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useState } from "react";
 import {
   addWhitelistDomain,
   type WhitelistState,
 } from "@/app/actions/community";
+import { CountryCombobox } from "@/components/CountryCombobox";
 import type { Country } from "@/lib/types";
 
 const initialState: WhitelistState = null;
@@ -18,49 +19,35 @@ export function WhitelistAddForm({ countries }: { countries: Country[] }) {
   const [domain, setDomain] = useState("");
   const [description, setDescription] = useState("");
 
-  const grouped = useMemo(() => {
-    const m = new Map<string, Country[]>();
-    for (const c of countries) {
-      if (!m.has(c.region)) m.set(c.region, []);
-      m.get(c.region)!.push(c);
-    }
-    const order = ["Europe", "Americas", "Asia", "Africa", "Oceania"];
-    return order.filter((r) => m.has(r)).map((r) => [r, m.get(r)!] as const);
-  }, [countries]);
-
   return (
     <form
       action={formAction}
       className="flex flex-col gap-3 rounded-2xl border border-black/5 bg-white p-5 shadow-sm sm:flex-row sm:items-end dark:border-white/10 dark:bg-zinc-900/60"
     >
       <div className="flex-1">
-        <label className="text-xs font-medium uppercase tracking-wide text-zinc-500" htmlFor="country_code">
+        <label
+          className="text-xs font-medium uppercase tracking-wide text-zinc-500"
+          htmlFor="country_code"
+        >
           Country
         </label>
-        <select
-          id="country_code"
-          name="country_code"
-          required
-          value={country}
-          onChange={(e) => setCountry(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-zinc-900 outline-none ring-emerald-500/40 focus:ring-2 dark:border-white/10 dark:bg-zinc-900 dark:text-white"
-        >
-          <option value="" disabled>
-            Choose…
-          </option>
-          {grouped.map(([region, list]) => (
-            <optgroup key={region} label={region}>
-              {list.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.name}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+        <div className="mt-1">
+          <CountryCombobox
+            countries={countries}
+            name="country_code"
+            required
+            value={country}
+            onChange={setCountry}
+            placeholder="Search countries…"
+            showComingSoon={false}
+          />
+        </div>
       </div>
       <div className="flex-[2]">
-        <label className="text-xs font-medium uppercase tracking-wide text-zinc-500" htmlFor="domain">
+        <label
+          className="text-xs font-medium uppercase tracking-wide text-zinc-500"
+          htmlFor="domain"
+        >
           Domain
         </label>
         <input
@@ -74,7 +61,10 @@ export function WhitelistAddForm({ countries }: { countries: Country[] }) {
         />
       </div>
       <div className="flex-[2]">
-        <label className="text-xs font-medium uppercase tracking-wide text-zinc-500" htmlFor="description">
+        <label
+          className="text-xs font-medium uppercase tracking-wide text-zinc-500"
+          htmlFor="description"
+        >
           Description (optional)
         </label>
         <input

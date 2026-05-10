@@ -5,6 +5,7 @@ import {
   saveOnboarding,
   type OnboardingState,
 } from "@/app/actions/onboarding";
+import { CountryCombobox } from "@/components/CountryCombobox";
 import { formatCurrency } from "@/lib/format";
 import type { CoicopCategory, Country } from "@/lib/types";
 
@@ -43,27 +44,6 @@ export function OnboardingForm({
   const currency = country?.currency ?? "";
   const isUnsupported = !!country && !country.is_supported;
 
-  // Group countries by region for the <optgroup>s. Supported countries float
-  // to the top of their region so the most useful options are easiest to find.
-  const countriesByRegion = useMemo(() => {
-    const groups = new Map<string, Country[]>();
-    for (const c of countries) {
-      if (!groups.has(c.region)) groups.set(c.region, []);
-      groups.get(c.region)!.push(c);
-    }
-    for (const list of groups.values()) {
-      list.sort((a, b) => {
-        if (a.is_supported !== b.is_supported) return a.is_supported ? -1 : 1;
-        return a.name.localeCompare(b.name);
-      });
-    }
-    // Stable region order (Eurostat is in Europe; show that first).
-    const order = ["Europe", "Americas", "Asia", "Africa", "Oceania"];
-    return order
-      .filter((r) => groups.has(r))
-      .map((r) => [r, groups.get(r)!] as const);
-  }, [countries]);
-
   const total = useMemo(
     () =>
       Object.values(spending).reduce(
@@ -78,27 +58,14 @@ export function OnboardingForm({
       {/* Country */}
       <section className="flex flex-col gap-3">
         <h2 className="text-xl font-semibold">1. Where do you live?</h2>
-        <select
+        <CountryCombobox
+          countries={countries}
           name="country_code"
           required
           value={countryCode}
-          onChange={(e) => setCountryCode(e.target.value)}
-          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-base text-zinc-900 outline-none ring-emerald-500/40 focus:ring-2 dark:border-white/10 dark:bg-zinc-900 dark:text-white"
-        >
-          <option value="" disabled>
-            Select a country…
-          </option>
-          {countriesByRegion.map(([region, list]) => (
-            <optgroup key={region} label={region}>
-              {list.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.name}
-                  {c.is_supported ? "" : " — coming soon"}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+          onChange={setCountryCode}
+          placeholder="Search countries…"
+        />
         {isUnsupported && (
           <p className="rounded-lg border border-amber-300/50 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-100">
             We don&apos;t have official CPI by category for{" "}

@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useState } from "react";
 import {
   applyAsContributor,
   type ApplyState,
 } from "@/app/actions/community";
+import { CountryCombobox } from "@/components/CountryCombobox";
 import type { Country } from "@/lib/types";
 
 const initialState: ApplyState = null;
@@ -15,19 +16,6 @@ export function ApplyContributorForm({ countries }: { countries: Country[] }) {
     initialState,
   );
   const [countryCode, setCountryCode] = useState("");
-
-  // Group by region for the dropdown — same UX as onboarding.
-  const byRegion = useMemo(() => {
-    const groups = new Map<string, Country[]>();
-    for (const c of countries) {
-      if (!groups.has(c.region)) groups.set(c.region, []);
-      groups.get(c.region)!.push(c);
-    }
-    const order = ["Europe", "Americas", "Asia", "Africa", "Oceania"];
-    return order
-      .filter((r) => groups.has(r))
-      .map((r) => [r, groups.get(r)!] as const);
-  }, [countries]);
 
   if (state?.ok) {
     return (
@@ -46,28 +34,16 @@ export function ApplyContributorForm({ countries }: { countries: Country[] }) {
       <label className="text-sm font-medium" htmlFor="country_code">
         Country you want to contribute for
       </label>
-      <select
-        id="country_code"
+      <CountryCombobox
+        countries={countries}
         name="country_code"
         required
         value={countryCode}
-        onChange={(e) => setCountryCode(e.target.value)}
-        className="rounded-xl border border-black/10 bg-white px-4 py-3 text-base text-zinc-900 outline-none ring-emerald-500/40 focus:ring-2 dark:border-white/10 dark:bg-zinc-900 dark:text-white"
-      >
-        <option value="" disabled>
-          Select a country…
-        </option>
-        {byRegion.map(([region, list]) => (
-          <optgroup key={region} label={region}>
-            {list.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.name}
-                {c.is_supported ? " — auto-ingested" : ""}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
+        onChange={setCountryCode}
+        placeholder="Search countries…"
+        showAutoIngested
+        showComingSoon={false}
+      />
 
       <label className="mt-2 text-sm font-medium" htmlFor="application_note">
         Why you?{" "}
