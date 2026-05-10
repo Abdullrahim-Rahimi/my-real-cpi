@@ -17,6 +17,7 @@ import type {
   UserSpendingRow,
 } from "@/lib/types";
 import { CategoryBreakdownChart } from "./DashboardCharts";
+import { NotifyToggle } from "./NotifyToggle";
 import { signOut } from "@/app/actions/auth";
 
 export default async function DashboardPage() {
@@ -28,7 +29,7 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from("user_profiles")
-    .select("user_id, country_code, display_name, currency, onboarded_at")
+    .select("user_id, country_code, display_name, currency, onboarded_at, notify_personal_cpi")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -368,6 +369,16 @@ export default async function DashboardPage() {
             </section>
           </>
         )}
+
+        {/* Notification preferences */}
+        <section className="mt-12 rounded-2xl border border-black/5 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-zinc-900/60">
+          <h2 className="text-lg font-semibold">Email preferences</h2>
+          <div className="mt-3">
+            <NotifyToggle
+              initialEnabled={profile?.notify_personal_cpi ?? true}
+            />
+          </div>
+        </section>
       </section>
     </main>
   );

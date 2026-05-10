@@ -19,6 +19,7 @@ import {
   notifyNewSubmission,
   notifyReviewDecision,
 } from "@/lib/email/notify";
+import { notifyPersonalCpiForCountry } from "@/lib/email/personalCpi";
 
 async function countryName(code: string): Promise<string> {
   const supabase = await createClient();
@@ -445,14 +446,21 @@ export async function approveBatch(
   if (error) return { ok: false, error: error.message };
 
   after(async () => {
+    const cName = await countryName(country_code);
     await notifyApprovalDecision({
       country_code,
-      country_name: await countryName(country_code),
+      country_name: cName,
       period,
       submitter_user_id: submitted_by,
       action,
       note: note || null,
     });
+    // When a community submission goes live, the AFTER trigger writes it
+    // into cpi_index — so users in that country have new data to react to.
+    // Notify them too. Idempotent: personal_cpi_notifications dedupes.
+    if (action === "approve") {
+      await notifyPersonalCpiForCountry({ country_code, period });
+    }
   });
 
   revalidatePath("/contribute/approve");

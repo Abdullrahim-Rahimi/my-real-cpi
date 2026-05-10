@@ -35,6 +35,7 @@ export type UserProfile = {
   display_name: string | null;
   currency: string | null;
   onboarded_at: string | null;
+  notify_personal_cpi: boolean;
 };
 
 export type UserSpendingRow = {

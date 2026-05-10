@@ -186,6 +186,89 @@ export function batchRejected(p: {
 }
 
 // =============================================================================
+// 6. Monthly personal-CPI update -> end users
+// =============================================================================
+export function personalCpiUpdate(p: {
+  country_name: string;
+  period: string;
+  personal_yoy_pct: number;
+  official_yoy_pct: number | null;
+  coverage_pct: number;
+  top_movers: { short_name: string; yoy_pct: number; weight: number }[];
+  unsubscribe_url: string;
+}): Email {
+  const sign = (n: number) => (n > 0 ? "+" : "");
+  const personalStr = `${sign(p.personal_yoy_pct)}${p.personal_yoy_pct.toFixed(1)}%`;
+  const officialStr =
+    p.official_yoy_pct == null
+      ? "n/a"
+      : `${sign(p.official_yoy_pct)}${p.official_yoy_pct.toFixed(1)}%`;
+  const periodLabel = fmtPeriod(p.period);
+
+  const compareLine =
+    p.official_yoy_pct == null
+      ? `Official headline: ${officialStr}.`
+      : p.personal_yoy_pct > p.official_yoy_pct
+        ? `That's ${(p.personal_yoy_pct - p.official_yoy_pct).toFixed(1)} pp above the headline (${officialStr}).`
+        : `That's ${(p.official_yoy_pct - p.personal_yoy_pct).toFixed(1)} pp below the headline (${officialStr}).`;
+
+  const subject = `[My Real CPI] Your ${periodLabel} personal CPI: ${personalStr}`;
+
+  const moverLinesText = p.top_movers
+    .map(
+      (m) =>
+        `  • ${m.short_name}: ${sign(m.yoy_pct)}${m.yoy_pct.toFixed(1)}% YoY (${(m.weight * 100).toFixed(0)}% of your spend)`,
+    )
+    .join("\n");
+
+  const text = [
+    `Your personal CPI for ${periodLabel} is ${personalStr}.`,
+    "",
+    compareLine,
+    "",
+    "Top contributors:",
+    moverLinesText,
+    "",
+    `View the full breakdown: ${SITE}/dashboard`,
+    "",
+    `Don't want these emails? Unsubscribe: ${p.unsubscribe_url}`,
+  ].join("\n");
+
+  const moverRowsHtml = p.top_movers
+    .map(
+      (m) => `<tr>
+<td style="padding:6px 0;color:#0a0a0a">${escapeHtml(m.short_name)}</td>
+<td style="padding:6px 0;text-align:right;color:#0a0a0a;font-variant-numeric:tabular-nums"><strong>${sign(m.yoy_pct)}${m.yoy_pct.toFixed(1)}%</strong></td>
+<td style="padding:6px 0;text-align:right;color:#737373;font-size:13px;font-variant-numeric:tabular-nums">${(m.weight * 100).toFixed(0)}% of spend</td>
+</tr>`,
+    )
+    .join("");
+
+  const html = shell(
+    `Your ${periodLabel} personal CPI`,
+    `<p style="margin:0 0 16px;font-size:14px;color:#737373">${escapeHtml(p.country_name)} · ${periodLabel}</p>
+<div style="display:flex;gap:16px;margin:0 0 16px">
+  <div style="flex:1;padding:16px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px">
+    <p style="margin:0;font-size:12px;color:#065f46;font-weight:500;text-transform:uppercase;letter-spacing:0.04em">Your real CPI</p>
+    <p style="margin:6px 0 0;font-size:32px;color:#064e3b;font-weight:700;font-variant-numeric:tabular-nums">${personalStr}</p>
+  </div>
+  <div style="flex:1;padding:16px;background:#fafafa;border:1px solid #e5e7eb;border-radius:10px">
+    <p style="margin:0;font-size:12px;color:#525252;font-weight:500;text-transform:uppercase;letter-spacing:0.04em">Official</p>
+    <p style="margin:6px 0 0;font-size:32px;color:#171717;font-weight:700;font-variant-numeric:tabular-nums">${officialStr}</p>
+  </div>
+</div>
+<p style="margin:0 0 4px;line-height:1.5">${escapeHtml(compareLine)}</p>
+<p style="margin:0 0 20px;font-size:13px;color:#737373">Coverage ${(p.coverage_pct * 100).toFixed(0)}% of your spend has matched data this period.</p>
+<h3 style="margin:24px 0 8px;font-size:15px">Top contributors</h3>
+<table style="width:100%;border-collapse:collapse;font-size:14px">${moverRowsHtml}</table>
+${button("Open dashboard", `${SITE}/dashboard`)}
+<p style="margin:32px 0 0;font-size:11px;color:#a3a3a3">Don't want monthly CPI emails? <a href="${escapeHtml(p.unsubscribe_url)}" style="color:#a3a3a3">Unsubscribe</a>.</p>`,
+  );
+
+  return { subject, text, html };
+}
+
+// =============================================================================
 // 5a. Approval approved -> contributor
 // =============================================================================
 export function batchLive(p: {

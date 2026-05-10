@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
@@ -62,4 +63,34 @@ export async function signOut() {
   await supabase.auth.signOut();
   // Send the user back to the marketing page after signing out.
   redirect("/");
+}
+
+// ---------------------------------------------------------------------------
+// Notification preferences
+// ---------------------------------------------------------------------------
+export type PreferenceState =
+  | { ok: true; notify_personal_cpi: boolean }
+  | { ok: false; error: string }
+  | null;
+
+export async function setNotifyPersonalCpi(
+  _prev: PreferenceState,
+  formData: FormData,
+): Promise<PreferenceState> {
+  const enabled = formData.get("enabled") === "1";
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  const { error } = await supabase
+    .from("user_profiles")
+    .update({ notify_personal_cpi: enabled })
+    .eq("user_id", user.id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/dashboard");
+  return { ok: true, notify_personal_cpi: enabled };
 }

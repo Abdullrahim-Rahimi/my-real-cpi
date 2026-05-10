@@ -12,6 +12,7 @@ import { fetchEurostatHicp } from "@/lib/ingestion/eurostat";
 import { fetchOecdCpi } from "@/lib/ingestion/oecd";
 import { fetchBlsCpi } from "@/lib/ingestion/bls";
 import { recomputeYoy, upsertCpiRows } from "@/lib/ingestion/upsert";
+import { notifyPersonalCpiForCountry } from "@/lib/email/personalCpi";
 import type { IngestResult, IngestRow } from "@/lib/ingestion/types";
 import type { Country } from "@/lib/types";
 
@@ -83,12 +84,47 @@ export async function GET(req: NextRequest) {
     yoyError = e instanceof Error ? e.message : String(e);
   }
 
+  // Personal-CPI notifications: for each country with newly-ingested data,
+  // identify the latest period and email users in that country whose data is
+  // ready. The notify function dedupes via personal_cpi_notifications, so
+  // re-running the cron is safe.
+  const latestByCountry = new Map<string, string>();
+  for (const row of allRows) {
+    if (row.category_code !== "00") continue;
+    const cur = latestByCountry.get(row.country_code);
+    if (!cur || row.period > cur) latestByCountry.set(row.country_code, row.period);
+  }
+
+  const notifyResults: Awaited<ReturnType<typeof notifyPersonalCpiForCountry>>[] = [];
+  if (yoyError == null && latestByCountry.size > 0) {
+    for (const [country_code, period] of latestByCountry) {
+      try {
+        const r = await notifyPersonalCpiForCountry({ country_code, period });
+        notifyResults.push(r);
+      } catch (e) {
+        console.error(`[cron] notify ${country_code} ${period} failed:`, e);
+      }
+    }
+  }
+
   return NextResponse.json({
     ok: upsertErrors.length === 0 && yoyError == null,
     sources: results.map(({ rowsRaw: _r, ...rest }) => rest),
     upserted,
     upsertErrors,
     yoyError,
+    notifications: {
+      countries: notifyResults.length,
+      sent: notifyResults.reduce((s, r) => s + r.sent, 0),
+      skipped_already_sent: notifyResults.reduce(
+        (s, r) => s + r.skipped_already_sent,
+        0,
+      ),
+      skipped_opted_out: notifyResults.reduce(
+        (s, r) => s + r.skipped_opted_out,
+        0,
+      ),
+    },
     timestamp: new Date().toISOString(),
   });
 }
