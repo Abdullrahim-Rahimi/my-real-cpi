@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { isUrlWhitelisted } from "@/lib/community/whitelist";
 import { verifyCaptchaIfConfigured } from "@/lib/community/captcha";
 import {
   activeContributorCountry,
@@ -12,6 +12,23 @@ import {
   MIN_ACCOUNT_AGE_DAYS,
 } from "@/lib/community/roles";
 import type { RoleSnapshot } from "@/lib/community/roles";
+import {
+  notifyApplicationDecision,
+  notifyApprovalDecision,
+  notifyNewApplication,
+  notifyNewSubmission,
+  notifyReviewDecision,
+} from "@/lib/email/notify";
+
+async function countryName(code: string): Promise<string> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("countries")
+    .select("name")
+    .eq("code", code)
+    .maybeSingle();
+  return (data?.name as string | undefined) ?? code;
+}
 
 // ===========================================================================
 // Helpers
@@ -93,6 +110,17 @@ export async function applyAsContributor(
   });
   if (error) return { ok: false, error: error.message };
 
+  // Email moderators after the response is returned.
+  after(async () => {
+    await notifyNewApplication({
+      applicant_user_id: me.user_id,
+      country_code: parsed.data.country_code,
+      country_name: await countryName(parsed.data.country_code),
+      role: "contributor",
+      note: parsed.data.application_note || null,
+    });
+  });
+
   revalidatePath("/contribute");
   return { ok: true };
 }
@@ -154,6 +182,16 @@ export async function applyForRole(
   });
   if (error) return { ok: false, error: error.message };
 
+  after(async () => {
+    await notifyNewApplication({
+      applicant_user_id: me.user_id,
+      country_code: country,
+      country_name: await countryName(country),
+      role: parsed.data.role,
+      note: null,
+    });
+  });
+
   revalidatePath("/contribute");
   return { ok: true };
 }
@@ -214,22 +252,11 @@ export async function submitCpiBatch(
 
   const supabase = await createClient();
 
-  // Source URL whitelist check.
-  const { data: whitelist } = await supabase
-    .from("country_source_whitelist")
-    .select("domain")
-    .eq("country_code", country_code);
-  const allowedDomains = (whitelist ?? []).map((r) => r.domain);
-  if (!isUrlWhitelisted(source_url, allowedDomains)) {
-    return {
-      ok: false,
-      error:
-        allowedDomains.length === 0
-          ? "No source URLs are whitelisted for this country yet. A moderator must add the official statistics office domain first."
-          : "The source URL must be on an approved domain. Allowed: " +
-            allowedDomains.join(", "),
-    };
-  }
+  // Source URL is required to be a syntactically valid http(s) URL (enforced
+  // by the Zod schema on the input + the CHECK constraint on the column),
+  // but the host is no longer required to match a country_source_whitelist
+  // entry. Reviewers/approvers verify the URL manually as part of the
+  // cross-country sign-off — that's now the sole gate against fake sources.
 
   // Anti-flood: block submitting more than N batches for same (country, period) per day.
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -264,6 +291,15 @@ export async function submitCpiBatch(
 
   const { error } = await supabase.from("cpi_submissions").insert(rows);
   if (error) return { ok: false, error: error.message };
+
+  after(async () => {
+    await notifyNewSubmission({
+      country_code,
+      country_name: await countryName(country_code),
+      period,
+      source_url,
+    });
+  });
 
   revalidatePath("/contribute");
   return { ok: true, submitted_count: rows.length };
@@ -317,6 +353,17 @@ export async function reviewBatch(
   const new_status =
     action === "approve" ? "pending_approval" : "rejected";
 
+  // Capture the source_url for the email before the rows are mutated.
+  const { data: sample } = await supabase
+    .from("cpi_submissions")
+    .select("source_url")
+    .eq("country_code", country_code)
+    .eq("period", period)
+    .eq("submitted_by", submitted_by)
+    .eq("status", "pending_review")
+    .limit(1)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("cpi_submissions")
     .update({
@@ -332,6 +379,19 @@ export async function reviewBatch(
     .eq("submitted_by", submitted_by)
     .eq("status", "pending_review");
   if (error) return { ok: false, error: error.message };
+
+  after(async () => {
+    await notifyReviewDecision({
+      country_code,
+      country_name: await countryName(country_code),
+      period,
+      source_url: (sample?.source_url as string) ?? "",
+      submitter_user_id: submitted_by,
+      reviewer_user_id: me.user_id,
+      action,
+      note: note || null,
+    });
+  });
 
   revalidatePath("/contribute/review");
   revalidatePath("/contribute/approve");
@@ -383,6 +443,17 @@ export async function approveBatch(
     .eq("submitted_by", submitted_by)
     .eq("status", "pending_approval");
   if (error) return { ok: false, error: error.message };
+
+  after(async () => {
+    await notifyApprovalDecision({
+      country_code,
+      country_name: await countryName(country_code),
+      period,
+      submitter_user_id: submitted_by,
+      action,
+      note: note || null,
+    });
+  });
 
   revalidatePath("/contribute/approve");
   revalidatePath("/dashboard");
@@ -453,6 +524,16 @@ export async function moderateApplication(
       .eq("role", parsed.data.role);
     if (error) return { ok: false, error: error.message };
   }
+
+  // Email the applicant about the decision.
+  after(async () => {
+    await notifyApplicationDecision({
+      user_id: parsed.data.user_id,
+      country_name: await countryName(parsed.data.country_code),
+      role: parsed.data.role,
+      decision: parsed.data.decision,
+    });
+  });
 
   revalidatePath("/admin");
   return { ok: true };

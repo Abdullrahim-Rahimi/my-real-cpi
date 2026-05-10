@@ -5,7 +5,6 @@ import {
   submitCpiBatch,
   type SubmitState,
 } from "@/app/actions/community";
-import { isUrlWhitelisted } from "@/lib/community/whitelist";
 import type { CoicopCategory } from "@/lib/types";
 
 const initialState: SubmitState = null;
@@ -40,13 +39,11 @@ export function SubmitCpiForm({
     return o;
   });
 
-  const allowedDomains = whitelist.map((w) => w.domain);
-  const urlOk = sourceUrl.length === 0 || isUrlWhitelisted(sourceUrl, allowedDomains);
   const allFilled = useMemo(
     () => categories.every((c) => values[c.code] && Number.isFinite(Number.parseFloat(values[c.code]))),
     [categories, values],
   );
-  const canSubmit = period && sourceUrl && urlOk && allFilled;
+  const canSubmit = period && sourceUrl && allFilled;
 
   if (state?.ok) {
     return (
@@ -66,15 +63,16 @@ export function SubmitCpiForm({
       <input type="hidden" name="country_code" value={country_code} />
       <input type="hidden" name="period" value={period} />
 
-      {/* Whitelist guidance */}
-      <section className="rounded-xl border border-black/5 bg-white p-4 text-sm dark:border-white/10 dark:bg-zinc-900/60">
-        <h3 className="font-semibold">Approved source domains for {country_name}</h3>
-        {whitelist.length === 0 ? (
-          <p className="mt-2 text-amber-700 dark:text-amber-300">
-            No domains whitelisted yet. A moderator must add the official statistics office before submissions can be accepted.
+      {whitelist.length > 0 && (
+        <section className="rounded-xl border border-black/5 bg-white p-4 text-sm dark:border-white/10 dark:bg-zinc-900/60">
+          <h3 className="font-semibold">Recommended sources for {country_name}</h3>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            Reviewers will be looking for an official source — these are the
+            ones moderators have flagged as authoritative. You can submit a
+            URL from anywhere, but submissions are easier to verify when
+            they&apos;re on this list.
           </p>
-        ) : (
-          <ul className="mt-2 space-y-1">
+          <ul className="mt-3 space-y-1">
             {whitelist.map((w) => (
               <li key={w.domain} className="flex items-center justify-between gap-3">
                 <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs dark:bg-zinc-800">
@@ -86,8 +84,8 @@ export function SubmitCpiForm({
               </li>
             ))}
           </ul>
-        )}
-      </section>
+        </section>
+      )}
 
       {/* Period + source URL */}
       <section className="grid gap-4 sm:grid-cols-2">
@@ -120,18 +118,8 @@ export function SubmitCpiForm({
             value={sourceUrl}
             onChange={(e) => setSourceUrl(e.target.value)}
             placeholder="https://gss.gov.gh/cpi-may-2026.pdf"
-            className={
-              "rounded-xl border bg-white px-4 py-3 text-base text-zinc-900 outline-none ring-emerald-500/40 placeholder:text-zinc-400 focus:ring-2 dark:bg-zinc-900 dark:text-white " +
-              (urlOk
-                ? "border-black/10 dark:border-white/10"
-                : "border-red-400 ring-1 ring-red-200 dark:border-red-500/60")
-            }
+            className="rounded-xl border border-black/10 bg-white px-4 py-3 text-base text-zinc-900 outline-none ring-emerald-500/40 placeholder:text-zinc-400 focus:ring-2 dark:border-white/10 dark:bg-zinc-900 dark:text-white"
           />
-          {!urlOk && sourceUrl.length > 0 && (
-            <p className="text-xs text-red-600 dark:text-red-400">
-              Domain not on the approved list.
-            </p>
-          )}
         </div>
       </section>
 
