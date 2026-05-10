@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { CoicopCategory, Country, UserSpendingRow } from "@/lib/types";
 import { OnboardingForm } from "./OnboardingForm";
+import { signOut } from "@/app/actions/auth";
 
 export default async function OnboardingPage() {
   const supabase = await createClient();
@@ -48,7 +49,17 @@ export default async function OnboardingPage() {
         <Link href="/" className="font-semibold tracking-tight">
           My Real CPI
         </Link>
-        <span className="text-sm text-zinc-600 dark:text-zinc-400">{user.email}</span>
+        <div className="flex items-center gap-4 text-sm text-zinc-600 dark:text-zinc-400">
+          <span>{user.email}</span>
+          <form action={signOut}>
+            <button
+              type="submit"
+              className="hover:text-zinc-900 dark:hover:text-zinc-100"
+            >
+              Sign out
+            </button>
+          </form>
+        </div>
       </header>
 
       <section className="mx-auto max-w-2xl px-5 pb-16 pt-2">
