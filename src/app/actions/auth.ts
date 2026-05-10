@@ -28,10 +28,13 @@ export async function sendMagicLink(
   }
 
   const supabase = await createClient();
+  // emailRedirectTo becomes `{{ .RedirectTo }}` in the email template, which
+  // we use as the post-confirm `next` param. /auth/confirm then re-routes
+  // based on onboarding state, so /dashboard is just the logical default.
   const { error } = await supabase.auth.signInWithOtp({
     email: parsed.data,
     options: {
-      emailRedirectTo: `${siteUrl()}/auth/callback`,
+      emailRedirectTo: `${siteUrl()}/dashboard`,
     },
   });
 

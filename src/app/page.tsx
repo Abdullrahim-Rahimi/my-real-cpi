@@ -3,7 +3,24 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SignInForm } from "@/components/SignInForm";
 
-export default async function Home() {
+function prettifyAuthError(raw: string): string {
+  switch (raw) {
+    case "missing_code":
+    case "missing_token":
+      return "The sign-in link looks incomplete. Try requesting a new one.";
+    case "Email link is invalid or has expired":
+    case "Token has expired or is invalid":
+      return "That sign-in link has expired or already been used. Request a new one.";
+    default:
+      return raw.replace(/_/g, " ");
+  }
+}
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   // If already signed in, jump straight in.
   const supabase = await createClient();
   const {
@@ -17,6 +34,10 @@ export default async function Home() {
       .maybeSingle();
     redirect(profile?.onboarded_at ? "/dashboard" : "/onboarding");
   }
+
+  // Surface auth-callback errors so users get a real message instead of just
+  // landing back on the email form with no explanation.
+  const { error } = await searchParams;
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-white to-emerald-50/60 text-zinc-900 dark:from-zinc-950 dark:to-emerald-950/30 dark:text-zinc-100">
@@ -49,6 +70,14 @@ export default async function Home() {
         </p>
 
         <div className="mt-8">
+          {error && (
+            <div className="mb-4 rounded-xl border border-red-300/50 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-500/40 dark:bg-red-950/30 dark:text-red-100">
+              <p className="font-medium">We couldn&apos;t sign you in.</p>
+              <p className="mt-1 text-red-800/90 dark:text-red-200/90">
+                {prettifyAuthError(error)}
+              </p>
+            </div>
+          )}
           <SignInForm />
           <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
             We&apos;ll email you a one-tap sign-in link. No password.
