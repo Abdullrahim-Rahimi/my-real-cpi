@@ -3,6 +3,13 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { computePersonalCpi } from "@/lib/cpi/calculate";
 import { formatCurrency, formatPercent, formatPeriod } from "@/lib/format";
+import {
+  activeContributorCountry,
+  hasActiveRole,
+} from "@/lib/community/roles";
+import type {
+  CountryContributorRow,
+} from "@/lib/community/types";
 import type {
   CoicopCategory,
   Country,
@@ -55,6 +62,57 @@ export default async function DashboardPage() {
     .eq("country_code", profile.country_code)
     .order("period", { ascending: false })
     .returns<CpiIndexRow[]>();
+
+  // Community role state and queue counts. Fetched here so the dashboard can
+  // surface "you have N pending reviews" / "1 batch awaiting approval" banners
+  // and gentle nudges to apply if the user's country is unsupported.
+  const { data: roleRows } = await supabase
+    .from("country_contributors")
+    .select("country_code, role, status")
+    .eq("user_id", user.id)
+    .returns<CountryContributorRow[]>();
+  const myRoles = roleRows ?? [];
+  const myContribCountry = activeContributorCountry(myRoles);
+  const isReviewer =
+    hasActiveRole(myRoles, "reviewer") || hasActiveRole(myRoles, "moderator");
+  const isApprover =
+    hasActiveRole(myRoles, "approver") || hasActiveRole(myRoles, "moderator");
+
+  let pendingReviewCount = 0;
+  let pendingApprovalCount = 0;
+  if (isReviewer) {
+    let q = supabase
+      .from("cpi_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending_review");
+    if (myContribCountry) q = q.neq("country_code", myContribCountry);
+    const { count } = await q;
+    pendingReviewCount = count ?? 0;
+  }
+  if (isApprover) {
+    let q = supabase
+      .from("cpi_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending_approval")
+      .neq("reviewer_id", user.id);
+    if (myContribCountry) q = q.neq("country_code", myContribCountry);
+    const { count } = await q;
+    pendingApprovalCount = count ?? 0;
+  }
+
+  // The contributor's own most recent submission status — so they see when
+  // their batch moves through the pipeline without having to check manually.
+  let myLatestSubmission: { status: string; period: string } | null = null;
+  if (myContribCountry) {
+    const { data } = await supabase
+      .from("cpi_submissions")
+      .select("status, period, submitted_at")
+      .eq("submitted_by", user.id)
+      .order("submitted_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data) myLatestSubmission = { status: data.status, period: data.period };
+  }
 
   const latestByCat = new Map<string, { yoy_pct: number | null; period: string }>();
   for (const row of cpiRows ?? []) {
@@ -117,13 +175,69 @@ export default async function DashboardPage() {
           {result.period ? ` · ${formatPeriod(result.period)}` : ""}
         </p>
 
+        {/* Role-aware queue banners (only render if there's something pending). */}
+        {(pendingReviewCount > 0 || pendingApprovalCount > 0) && (
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            {pendingReviewCount > 0 && (
+              <Link
+                href="/contribute/review"
+                className="flex flex-1 items-center justify-between rounded-xl border border-emerald-600/20 bg-emerald-50 px-4 py-3 text-sm transition hover:border-emerald-600/40 dark:border-emerald-500/30 dark:bg-emerald-950/30"
+              >
+                <span className="text-emerald-900 dark:text-emerald-100">
+                  <strong>{pendingReviewCount}</strong>{" "}
+                  {pendingReviewCount === 1 ? "submission" : "submissions"} waiting on your review
+                </span>
+                <span className="text-emerald-700 dark:text-emerald-400">→</span>
+              </Link>
+            )}
+            {pendingApprovalCount > 0 && (
+              <Link
+                href="/contribute/approve"
+                className="flex flex-1 items-center justify-between rounded-xl border border-emerald-600/20 bg-emerald-50 px-4 py-3 text-sm transition hover:border-emerald-600/40 dark:border-emerald-500/30 dark:bg-emerald-950/30"
+              >
+                <span className="text-emerald-900 dark:text-emerald-100">
+                  <strong>{pendingApprovalCount}</strong>{" "}
+                  {pendingApprovalCount === 1 ? "submission" : "submissions"} ready for your approval
+                </span>
+                <span className="text-emerald-700 dark:text-emerald-400">→</span>
+              </Link>
+            )}
+          </div>
+        )}
+
+        {/* Personal contributor's own batch status (if they've submitted recently). */}
+        {myLatestSubmission && myLatestSubmission.status !== "live" && (
+          <div className="mt-4 rounded-xl border border-black/5 bg-white px-4 py-3 text-sm shadow-sm dark:border-white/10 dark:bg-zinc-900/60">
+            <span className="text-zinc-600 dark:text-zinc-400">
+              Your{" "}
+              {new Date(myLatestSubmission.period).toLocaleDateString(undefined, {
+                month: "long",
+                year: "numeric",
+              })}{" "}
+              submission is{" "}
+              <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                {myLatestSubmission.status.replace(/_/g, " ")}
+              </span>
+              .
+            </span>
+          </div>
+        )}
+
         {!hasData ? (
           <div className="mt-6 rounded-2xl border border-amber-300/40 bg-amber-50 p-6 dark:border-amber-500/30 dark:bg-amber-950/30">
             <h2 className="text-xl font-semibold">CPI data is refreshing</h2>
             <p className="mt-2 text-sm text-amber-900 dark:text-amber-100">
               We don&apos;t yet have CPI by category for {country?.name}. Our
-              monthly ingestion job runs on the 1st of each month — your real
-              CPI will appear here as soon as official data lands.
+              auto-ingest covers ~33 countries; for the rest, the community
+              keeps data fresh through the contributor pipeline.
+            </p>
+            <p className="mt-3 text-sm">
+              <Link
+                href="/contribute"
+                className="font-medium text-amber-900 underline underline-offset-2 hover:opacity-80 dark:text-amber-100"
+              >
+                Help bring {country?.name} online →
+              </Link>
             </p>
           </div>
         ) : (

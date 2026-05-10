@@ -5,14 +5,32 @@ import { sendMagicLink, type SignInState } from "@/app/actions/auth";
 
 const initialState: SignInState = null;
 
-export function SignInForm() {
+type SignInFormProps = {
+  /** Optional post-auth redirect (e.g. "/contribute"). Must start with "/". */
+  next?: string;
+  /** Override the submit button label (e.g. "Sign in to contribute"). */
+  cta?: string;
+};
+
+export function SignInForm({ next, cta }: SignInFormProps = {}) {
   // Bumping `key` forces useActionState to reset to the input view when the
   // user clicks "try a different email" after a successful send.
   const [formKey, setFormKey] = useState(0);
-  return <SignInFormInner key={formKey} onReset={() => setFormKey((k) => k + 1)} />;
+  return (
+    <SignInFormInner
+      key={formKey}
+      next={next}
+      cta={cta}
+      onReset={() => setFormKey((k) => k + 1)}
+    />
+  );
 }
 
-function SignInFormInner({ onReset }: { onReset: () => void }) {
+function SignInFormInner({
+  next,
+  cta,
+  onReset,
+}: SignInFormProps & { onReset: () => void }) {
   const [state, formAction, pending] = useActionState(sendMagicLink, initialState);
 
   if (state?.ok) {
@@ -52,12 +70,13 @@ function SignInFormInner({ onReset }: { onReset: () => void }) {
         placeholder="you@example.com"
         className="flex-1 rounded-xl border border-black/10 bg-white px-4 py-3 text-base text-zinc-900 outline-none ring-emerald-500/40 placeholder:text-zinc-400 focus:ring-2 dark:border-white/10 dark:bg-zinc-900 dark:text-white"
       />
+      {next && <input type="hidden" name="next" value={next} />}
       <button
         type="submit"
         disabled={pending}
         className="rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {pending ? "Sending…" : "Get my real CPI"}
+        {pending ? "Sending…" : cta ?? "Get my real CPI"}
       </button>
       {state?.ok === false && (
         <p className="basis-full text-sm text-red-600 dark:text-red-400">

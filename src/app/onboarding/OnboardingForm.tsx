@@ -67,12 +67,24 @@ export function OnboardingForm({
           placeholder="Search countries…"
         />
         {isUnsupported && (
-          <p className="rounded-lg border border-amber-300/50 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-100">
-            We don&apos;t have official CPI by category for{" "}
-            <strong>{country?.name}</strong> yet. You can still enter your
-            spending — we&apos;ll show your real CPI as soon as data is wired
-            up for your country.
-          </p>
+          <div className="rounded-lg border border-amber-300/50 bg-amber-50 px-3 py-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-100">
+            <p>
+              We don&apos;t have official CPI by category for{" "}
+              <strong>{country?.name}</strong> yet. You can still enter your
+              spending — we&apos;ll show your real CPI as soon as data lands.
+            </p>
+            <p className="mt-2">
+              <a
+                href="/contribute"
+                className="font-medium underline underline-offset-2 hover:opacity-80"
+              >
+                Help us bring {country?.name} online →
+              </a>{" "}
+              <span className="text-amber-800/80 dark:text-amber-200/80">
+                Become a contributor: 10 min/month copying from your stat office.
+              </span>
+            </p>
+          </div>
         )}
       </section>
 

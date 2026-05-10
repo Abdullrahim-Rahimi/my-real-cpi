@@ -5,6 +5,15 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
 const EmailSchema = z.string().trim().toLowerCase().email();
+// `next` lets a marketing CTA (e.g. "Become a contributor") deep-link a new
+// signup directly to its destination after the magic-link round-trip.
+// Restrict to absolute paths starting with "/" to prevent open-redirects.
+const NextSchema = z
+  .string()
+  .regex(/^\/[A-Za-z0-9/_\-?&=.]*$/)
+  .max(200)
+  .optional()
+  .or(z.literal(""));
 
 export type SignInState =
   | { ok: true; email: string }
@@ -22,26 +31,30 @@ export async function sendMagicLink(
   _prev: SignInState,
   formData: FormData,
 ): Promise<SignInState> {
-  const parsed = EmailSchema.safeParse(formData.get("email"));
-  if (!parsed.success) {
+  const parsedEmail = EmailSchema.safeParse(formData.get("email"));
+  if (!parsedEmail.success) {
     return { ok: false, error: "Please enter a valid email address." };
   }
+  const parsedNext = NextSchema.safeParse(formData.get("next") ?? "");
+  const next = parsedNext.success ? parsedNext.data || "" : "";
+
+  // emailRedirectTo becomes `{{ .RedirectTo }}` in the email template (i.e.
+  // the `next` param /auth/confirm reads after verifying). If the caller
+  // passed a `next` (e.g. /contribute), preserve it across the round-trip.
+  const redirect = next
+    ? `${siteUrl()}${next}`
+    : `${siteUrl()}/dashboard`;
 
   const supabase = await createClient();
-  // emailRedirectTo becomes `{{ .RedirectTo }}` in the email template, which
-  // we use as the post-confirm `next` param. /auth/confirm then re-routes
-  // based on onboarding state, so /dashboard is just the logical default.
   const { error } = await supabase.auth.signInWithOtp({
-    email: parsed.data,
-    options: {
-      emailRedirectTo: `${siteUrl()}/dashboard`,
-    },
+    email: parsedEmail.data,
+    options: { emailRedirectTo: redirect },
   });
 
   if (error) {
     return { ok: false, error: error.message };
   }
-  return { ok: true, email: parsed.data };
+  return { ok: true, email: parsedEmail.data };
 }
 
 export async function signOut() {
