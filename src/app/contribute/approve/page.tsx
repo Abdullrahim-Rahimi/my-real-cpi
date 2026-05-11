@@ -6,6 +6,7 @@ import type {
   CountryContributorRow,
   CpiSubmissionRow,
 } from "@/lib/community/types";
+import type { CoicopCategory } from "@/lib/types";
 import { ApproveBatch } from "./ApproveBatch";
 import { signOut } from "@/app/actions/auth";
 
