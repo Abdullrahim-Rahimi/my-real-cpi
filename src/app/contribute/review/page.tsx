@@ -55,6 +55,18 @@ export default async function ReviewQueuePage() {
   if (myCountry) q = q.neq("country_code", myCountry);
   const { data: rows } = await q.returns<CpiSubmissionRow[]>();
 
+  // Count submissions that the cross-country rule excluded, so the empty
+  // state can explain WHY when the global queue isn't actually empty.
+  let excludedCount = 0;
+  if (myCountry && (rows ?? []).length === 0) {
+    const { count } = await supabase
+      .from("cpi_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending_review")
+      .eq("country_code", myCountry);
+    excludedCount = count ?? 0;
+  }
+
   // Group by (country, period, submitter) to form batches.
   const batches = new Map<string, Batch>();
   for (const r of rows ?? []) {
@@ -112,9 +124,25 @@ export default async function ReviewQueuePage() {
 
         {batchList.length === 0 ? (
           <div className="mt-10 rounded-2xl border border-black/5 bg-white p-6 text-center shadow-sm dark:border-white/10 dark:bg-zinc-900/60">
-            <p className="text-zinc-600 dark:text-zinc-400">
-              Nothing in the queue right now. 🎉
-            </p>
+            {excludedCount > 0 ? (
+              <>
+                <p className="text-zinc-700 dark:text-zinc-300">
+                  Nothing for{" "}
+                  <span className="font-medium">you</span> to review right now.
+                </p>
+                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                  There are {excludedCount}{" "}
+                  {excludedCount === 1 ? "submission" : "submissions"} in the
+                  queue, but they&apos;re all for{" "}
+                  <strong>{myCountry}</strong> — your own contributor country.
+                  The cross-country rule means someone else has to review them.
+                </p>
+              </>
+            ) : (
+              <p className="text-zinc-600 dark:text-zinc-400">
+                Nothing in the queue right now. 🎉
+              </p>
+            )}
             <div className="mt-4 flex justify-center gap-4 text-sm">
               <Link
                 href="/contribute"

@@ -55,6 +55,17 @@ export default async function ApproveQueuePage() {
   if (myCountry) q = q.neq("country_code", myCountry);
   const { data: rows } = await q.returns<CpiSubmissionRow[]>();
 
+  // Same "explain why the queue looks empty" diagnostic as the reviewer page.
+  let excludedCount = 0;
+  if ((rows ?? []).length === 0 && myCountry) {
+    const { count } = await supabase
+      .from("cpi_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending_approval")
+      .eq("country_code", myCountry);
+    excludedCount = count ?? 0;
+  }
+
   const batches = new Map<string, Batch>();
   for (const r of rows ?? []) {
     const key = `${r.country_code}|${r.period}|${r.submitted_by}`;
@@ -112,9 +123,25 @@ export default async function ApproveQueuePage() {
 
         {batchList.length === 0 ? (
           <div className="mt-10 rounded-2xl border border-black/5 bg-white p-6 text-center shadow-sm dark:border-white/10 dark:bg-zinc-900/60">
-            <p className="text-zinc-600 dark:text-zinc-400">
-              Nothing waiting on you. 🎉
-            </p>
+            {excludedCount > 0 ? (
+              <>
+                <p className="text-zinc-700 dark:text-zinc-300">
+                  Nothing for{" "}
+                  <span className="font-medium">you</span> to approve right now.
+                </p>
+                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                  There are {excludedCount}{" "}
+                  {excludedCount === 1 ? "submission" : "submissions"} ready
+                  for approval, but they&apos;re all for{" "}
+                  <strong>{myCountry}</strong> — your own contributor country.
+                  An approver from another country has to sign them off.
+                </p>
+              </>
+            ) : (
+              <p className="text-zinc-600 dark:text-zinc-400">
+                Nothing waiting on you. 🎉
+              </p>
+            )}
             <div className="mt-4 flex justify-center gap-4 text-sm">
               <Link
                 href="/contribute"
