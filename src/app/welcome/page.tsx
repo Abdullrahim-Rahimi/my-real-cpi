@@ -32,6 +32,15 @@ export default async function WelcomePage() {
   ]);
 
   const roles = (roleRows ?? []).filter((r) => r.status === "active");
+
+  // Returning end users (already onboarded, no community roles) shouldn't see
+  // the welcome page on every sign-in — they'd hit it on each magic-link
+  // click after we made /welcome the default confirm destination. Send them
+  // straight to their dashboard. Community members still land here on
+  // repeat visits because /welcome surfaces their queues/admin links.
+  if (profile?.onboarded_at && roles.length === 0) {
+    redirect("/dashboard");
+  }
   const countryCodes = Array.from(new Set(roles.map((r) => r.country_code)));
   const countryNames = new Map<string, string>();
   if (countryCodes.length > 0) {

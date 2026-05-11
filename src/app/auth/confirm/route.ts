@@ -73,6 +73,9 @@ export async function GET(request: NextRequest) {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const dest = profile?.onboarded_at ? "/dashboard" : "/onboarding";
+  // Already-onboarded users go straight to their dashboard. First-time
+  // confirmations land on /welcome which shows the "your email is
+  // confirmed" hero + role-aware next steps.
+  const dest = profile?.onboarded_at ? "/dashboard" : "/welcome";
   return NextResponse.redirect(new URL(dest, origin));
 }

@@ -41,10 +41,13 @@ export async function sendMagicLink(
 
   // emailRedirectTo becomes `{{ .RedirectTo }}` in the email template (i.e.
   // the `next` param /auth/confirm reads after verifying). If the caller
-  // passed a `next` (e.g. /contribute), preserve it across the round-trip.
+  // passed an explicit `next` (e.g. /contribute), preserve it. Otherwise
+  // route through /welcome so users get a clear "email confirmed" moment
+  // before being dropped into the app. /welcome itself handles routing
+  // for repeat sign-ins (already-onboarded end users skip ahead).
   const redirect = next
     ? `${siteUrl()}${next}`
-    : `${siteUrl()}/dashboard`;
+    : `${siteUrl()}/welcome`;
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithOtp({

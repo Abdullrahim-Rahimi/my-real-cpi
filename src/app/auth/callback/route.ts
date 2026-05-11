@@ -50,6 +50,6 @@ export async function GET(request: NextRequest) {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const dest = profile?.onboarded_at ? "/dashboard" : "/onboarding";
+  const dest = profile?.onboarded_at ? "/dashboard" : "/welcome";
   return NextResponse.redirect(new URL(dest, origin));
 }
