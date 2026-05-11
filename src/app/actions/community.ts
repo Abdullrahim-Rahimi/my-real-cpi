@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { verifyCaptchaIfConfigured } from "@/lib/community/captcha";
 import {
   activeContributorCountry,
@@ -682,6 +682,110 @@ export async function moderateApplication(
 
   revalidatePath("/admin");
   return { ok: true };
+}
+
+// ===========================================================================
+// Moderation: add a member directly (skip the application phase).
+//
+// The admin enters an email + country + role. If the email is already an
+// auth.users row we attach the role to that user. Otherwise we invite them
+// via Supabase's admin API (sends a magic-link "you've been invited" email)
+// and attach the role to the newly-created user. In both cases the role row
+// is inserted with status='active' since the admin is explicitly approving.
+// ===========================================================================
+const AddMemberInput = z.object({
+  email: z.string().trim().toLowerCase().email().max(200),
+  country_code: z.string().regex(/^[A-Z]{2}$/),
+  role: z.enum(["contributor", "reviewer", "approver", "moderator"]),
+});
+
+export type AddMemberState =
+  | { ok: true; invited: boolean; email: string }
+  | { ok: false; error: string }
+  | null;
+
+export async function addMember(
+  _prev: AddMemberState,
+  formData: FormData,
+): Promise<AddMemberState> {
+  const parsed = AddMemberInput.safeParse({
+    email: formData.get("email"),
+    country_code: formData.get("country_code"),
+    role: formData.get("role"),
+  });
+  if (!parsed.success) return { ok: false, error: "Invalid input." };
+
+  // Authorize: caller must be an active moderator.
+  const me = await loadMyRoles();
+  if (!me) return { ok: false, error: "Not signed in." };
+  if (!me.roles.some((r) => r.role === "moderator" && r.status === "active")) {
+    return { ok: false, error: "Moderator access required." };
+  }
+
+  const admin = createServiceClient();
+
+  // Step 1: find an existing auth.users row by email, or invite.
+  let user_id: string;
+  let invited = false;
+  const { data: existing, error: lookupErr } = await admin.rpc(
+    "find_user_by_email",
+    { p_email: parsed.data.email },
+  );
+  if (lookupErr) return { ok: false, error: lookupErr.message };
+
+  if (existing) {
+    user_id = existing as string;
+  } else {
+    const site = process.env.NEXT_PUBLIC_SITE_URL || "https://myrealcpi.com";
+    const { data: inv, error: invErr } = await admin.auth.admin.inviteUserByEmail(
+      parsed.data.email,
+      { redirectTo: `${site}/dashboard` },
+    );
+    if (invErr) return { ok: false, error: `Invite failed: ${invErr.message}` };
+    if (!inv.user) return { ok: false, error: "Invite returned no user." };
+    user_id = inv.user.id;
+    invited = true;
+  }
+
+  // Step 2: insert the role row directly as active.
+  const { error: insertErr } = await admin.from("country_contributors").insert({
+    user_id,
+    country_code: parsed.data.country_code,
+    role: parsed.data.role,
+    status: "active",
+    approved_by: me.user_id,
+    approved_at: new Date().toISOString(),
+  });
+  if (insertErr) {
+    if (insertErr.code === "23505") {
+      return {
+        ok: false,
+        error: "That user already has this role for this country.",
+      };
+    }
+    return { ok: false, error: insertErr.message };
+  }
+
+  // Step 3: if the user already existed (no invite email was sent), send the
+  // "you've been granted X role" notification so they hear about it.
+  // For newly-invited users, Supabase already sent them the invite mail
+  // with the magic-link sign-in, so adding a second email would be noisy.
+  if (!invited) {
+    after(async () => {
+      const cName = await countryName(parsed.data.country_code);
+      await notifyApplicationDecision({
+        user_id,
+        country_name: cName,
+        role: parsed.data.role,
+        decision: "approve",
+      });
+    });
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/members");
+  revalidatePath("/admin/applications");
+  return { ok: true, invited, email: parsed.data.email };
 }
 
 // ===========================================================================

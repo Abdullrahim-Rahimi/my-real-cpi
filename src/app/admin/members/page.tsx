@@ -4,6 +4,8 @@ import type {
   CommunityStatus,
   CountryContributorRow,
 } from "@/lib/community/types";
+import type { Country } from "@/lib/types";
+import { AddMemberForm } from "./AddMemberForm";
 import { MemberRow } from "./MemberRow";
 
 type FilterParams = {
@@ -79,6 +81,14 @@ export default async function AdminMembersPage({
     .select("code, name")
     .order("name", { ascending: true });
 
+  // Full country rows for the AddMemberForm's combobox.
+  const { data: countriesFull } = await supabase
+    .from("countries")
+    .select("code, iso3, name, currency, cpi_source, is_supported, region")
+    .order("region", { ascending: true })
+    .order("name", { ascending: true })
+    .returns<Country[]>();
+
   // Counts by status for the filter chips.
   const counts = { all: 0, pending: 0, active: 0, suspended: 0 };
   const { data: countRows } = await supabase
@@ -98,6 +108,10 @@ export default async function AdminMembersPage({
         Use the filters to narrow down. Email is shown so you can reach out
         if needed.
       </p>
+
+      <div className="mt-6">
+        <AddMemberForm countries={countriesFull ?? []} />
+      </div>
 
       <Filters
         currentStatus={statusFilter}
