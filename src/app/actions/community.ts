@@ -736,10 +736,14 @@ export async function addMember(
   if (existing) {
     user_id = existing as string;
   } else {
+    // Invited users land on /welcome (not /dashboard) so the first thing they
+    // see is a confirmation of their email + the roles they were granted +
+    // role-appropriate next-step CTAs, instead of being silently bounced
+    // into the personal onboarding flow.
     const site = process.env.NEXT_PUBLIC_SITE_URL || "https://myrealcpi.com";
     const { data: inv, error: invErr } = await admin.auth.admin.inviteUserByEmail(
       parsed.data.email,
-      { redirectTo: `${site}/dashboard` },
+      { redirectTo: `${site}/welcome` },
     );
     if (invErr) return { ok: false, error: `Invite failed: ${invErr.message}` };
     if (!inv.user) return { ok: false, error: "Invite returned no user." };
