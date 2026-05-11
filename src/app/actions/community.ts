@@ -469,6 +469,67 @@ export async function approveBatch(
 }
 
 // ===========================================================================
+// Self-resignation / reactivation.
+// A user can toggle their own role between 'active' and 'suspended' without
+// going through moderator approval. The RLS policy "users toggle own
+// active/suspended" enforces the same constraint at the DB level so a buggy
+// client can never escalate from 'pending' here.
+// ===========================================================================
+const SelfStatusInput = z.object({
+  role: z.enum(["contributor", "reviewer", "approver"]),
+  country_code: z.string().regex(/^[A-Z]{2}$/),
+  status: z.enum(["active", "suspended"]),
+});
+
+export type SelfStatusState =
+  | { ok: true; status: "active" | "suspended" }
+  | { ok: false; error: string }
+  | null;
+
+export async function setMyRoleStatus(
+  _prev: SelfStatusState,
+  formData: FormData,
+): Promise<SelfStatusState> {
+  const parsed = SelfStatusInput.safeParse({
+    role: formData.get("role"),
+    country_code: formData.get("country_code"),
+    status: formData.get("status"),
+  });
+  if (!parsed.success) return { ok: false, error: "Invalid input." };
+
+  const supabase = await createClient();
+  const me = await loadMyRoles();
+  if (!me) return { ok: false, error: "Not signed in." };
+
+  // Sanity check: the row must exist and currently be active or suspended.
+  // (The RLS USING clause will silently filter out pending rows anyway.)
+  const updatePatch: Record<string, unknown> = { status: parsed.data.status };
+  if (parsed.data.status === "suspended") {
+    updatePatch.suspended_at = new Date().toISOString();
+  }
+
+  const { error, count } = await supabase
+    .from("country_contributors")
+    .update(updatePatch, { count: "exact" })
+    .eq("user_id", me.user_id)
+    .eq("country_code", parsed.data.country_code)
+    .eq("role", parsed.data.role)
+    .in("status", ["active", "suspended"]);
+  if (error) return { ok: false, error: error.message };
+  if (count === 0) {
+    return {
+      ok: false,
+      error:
+        "Couldn't change that role. Pending applications can only be approved by a moderator.",
+    };
+  }
+
+  revalidatePath("/contribute");
+  revalidatePath("/dashboard");
+  return { ok: true, status: parsed.data.status };
+}
+
+// ===========================================================================
 // Moderation: approve a contributor application (moderator only).
 // ===========================================================================
 const ModerateInput = z.object({

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import NextTopLoader from "nextjs-toploader";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -59,6 +60,17 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        {/*
+          Thin emerald progress bar at the top during route transitions.
+          Animated automatically on every <Link> click and programmatic
+          navigation, so navigation between pages no longer feels silent.
+        */}
+        <NextTopLoader
+          color="#059669"
+          height={2.5}
+          showSpinner={false}
+          shadow="0 0 6px #059669"
+        />
         {children}
       </body>
     </html>

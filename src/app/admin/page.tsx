@@ -36,7 +36,7 @@ export default async function AdminHome() {
     {
       title: "Live community submissions",
       value: liveSubmissions,
-      href: "#",
+      href: "/admin/members",
     },
   ];
 

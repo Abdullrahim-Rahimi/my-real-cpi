@@ -10,6 +10,7 @@ import type { CountryContributorRow } from "@/lib/community/types";
 import type { Country } from "@/lib/types";
 import { ApplyContributorForm } from "./ApplyContributorForm";
 import { ApplyRoleForm } from "./ApplyRoleForm";
+import { RoleStatusToggle } from "./RoleStatusToggle";
 import { signOut } from "@/app/actions/auth";
 
 // Friendly explanations when a user lands here after a permission redirect.
@@ -119,27 +120,43 @@ export default async function ContributePage({
         {roles.length > 0 && (
           <section className="mt-8 rounded-2xl border border-black/5 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-zinc-900/60">
             <h2 className="text-lg font-semibold">Your roles</h2>
-            <ul className="mt-2 space-y-1 text-sm">
+            <ul className="mt-3 space-y-2 text-sm">
               {roles.map((r) => (
-                <li key={`${r.country_code}-${r.role}`} className="flex items-center justify-between">
+                <li
+                  key={`${r.country_code}-${r.role}`}
+                  className="flex flex-wrap items-center justify-between gap-3"
+                >
                   <span>
                     <span className="font-medium capitalize">{r.role}</span>
                     {r.role === "contributor" ? ` · ${r.country_code}` : ""}
                   </span>
-                  <span
-                    className={
-                      r.status === "active"
-                        ? "rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
-                        : r.status === "pending"
-                          ? "rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
-                          : "rounded-full bg-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-                    }
-                  >
-                    {statusLabel(r.status)}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={
+                        r.status === "active"
+                          ? "rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
+                          : r.status === "pending"
+                            ? "rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                            : "rounded-full bg-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                      }
+                    >
+                      {statusLabel(r.status)}
+                    </span>
+                    {r.role !== "moderator" && (r.status === "active" || r.status === "suspended") && (
+                      <RoleStatusToggle
+                        role={r.role}
+                        country_code={r.country_code}
+                        currentStatus={r.status}
+                      />
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
+            <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+              Step down to pause your role — you can reactivate any time. To
+              fully delete a role, ask a moderator.
+            </p>
           </section>
         )}
 

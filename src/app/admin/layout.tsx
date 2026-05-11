@@ -32,9 +32,12 @@ export default async function AdminLayout({
             <Link href="/admin" className="font-semibold tracking-tight">
               My Real CPI · admin
             </Link>
-            <nav className="flex gap-4 text-sm text-zinc-600 dark:text-zinc-400">
+            <nav className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-zinc-600 dark:text-zinc-400">
               <Link href="/admin/applications" className="hover:text-zinc-900 dark:hover:text-zinc-100">
                 Applications
+              </Link>
+              <Link href="/admin/members" className="hover:text-zinc-900 dark:hover:text-zinc-100">
+                Members
               </Link>
               <Link href="/admin/whitelist" className="hover:text-zinc-900 dark:hover:text-zinc-100">
                 Source whitelist
