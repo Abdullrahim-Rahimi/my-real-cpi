@@ -789,6 +789,78 @@ export async function addMember(
 }
 
 // ===========================================================================
+// Moderation: edit an existing member (country, role, status).
+// Calls the admin_update_member RPC which wraps the swap (DELETE+INSERT,
+// since the PK is composite) inside a single transaction.
+// ===========================================================================
+const UpdateMemberInput = z.object({
+  user_id: z.string().uuid(),
+  old_country_code: z.string().regex(/^[A-Z]{2}$/),
+  old_role: z.enum(["contributor", "reviewer", "approver", "moderator"]),
+  new_country_code: z.string().regex(/^[A-Z]{2}$/),
+  new_role: z.enum(["contributor", "reviewer", "approver", "moderator"]),
+  new_status: z.enum(["pending", "active", "suspended"]),
+});
+
+export type UpdateMemberState =
+  | { ok: true }
+  | { ok: false; error: string }
+  | null;
+
+export async function updateMember(
+  _prev: UpdateMemberState,
+  formData: FormData,
+): Promise<UpdateMemberState> {
+  const parsed = UpdateMemberInput.safeParse({
+    user_id: formData.get("user_id"),
+    old_country_code: formData.get("old_country_code"),
+    old_role: formData.get("old_role"),
+    new_country_code: formData.get("new_country_code"),
+    new_role: formData.get("new_role"),
+    new_status: formData.get("new_status"),
+  });
+  if (!parsed.success) return { ok: false, error: "Invalid input." };
+
+  const me = await loadMyRoles();
+  if (!me) return { ok: false, error: "Not signed in." };
+  if (!me.roles.some((r) => r.role === "moderator" && r.status === "active")) {
+    return { ok: false, error: "Moderator access required." };
+  }
+
+  const admin = createServiceClient();
+  const { error } = await admin.rpc("admin_update_member", {
+    p_user_id: parsed.data.user_id,
+    p_old_country: parsed.data.old_country_code,
+    p_old_role: parsed.data.old_role,
+    p_new_country: parsed.data.new_country_code,
+    p_new_role: parsed.data.new_role,
+    p_new_status: parsed.data.new_status,
+    p_caller_id: me.user_id,
+  });
+  if (error) {
+    if (error.code === "23505") {
+      return {
+        ok: false,
+        error:
+          "That target combination already exists (a row for that user + country + role is already on file).",
+      };
+    }
+    if (error.code === "23P01" || /partial unique/.test(error.message)) {
+      return {
+        ok: false,
+        error:
+          "A user can only be a contributor for one country. Suspend their existing contributor role before changing it.",
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/members");
+  return { ok: true };
+}
+
+// ===========================================================================
 // Moderation: manage source-URL whitelist.
 // ===========================================================================
 const WhitelistAddInput = z.object({

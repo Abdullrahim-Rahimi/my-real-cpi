@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import {
   moderateApplication,
@@ -93,29 +94,37 @@ export function MemberRow(props: Props) {
         {new Date(props.created_at).toLocaleDateString()}
       </td>
       <td className="px-4 py-3">
-        <form action={formAction} className="flex justify-end gap-2">
-          <input type="hidden" name="user_id" value={props.user_id} />
-          <input type="hidden" name="country_code" value={props.country_code} />
-          <input type="hidden" name="role" value={props.role} />
-          {props.status === "pending" && (
-            <>
-              {actionButton("approve", "Approve", "primary")}
-              {actionButton("reject", "Reject", "danger")}
-            </>
-          )}
-          {props.status === "active" && (
-            <>
-              {actionButton("suspend", "Suspend", "ghost")}
-              {actionButton("reject", "Remove", "danger")}
-            </>
-          )}
-          {props.status === "suspended" && (
-            <>
-              {actionButton("approve", "Reactivate", "primary")}
-              {actionButton("reject", "Remove", "danger")}
-            </>
-          )}
-        </form>
+        <div className="flex flex-wrap justify-end gap-2">
+          <form action={formAction} className="flex gap-2">
+            <input type="hidden" name="user_id" value={props.user_id} />
+            <input type="hidden" name="country_code" value={props.country_code} />
+            <input type="hidden" name="role" value={props.role} />
+            {props.status === "pending" && (
+              <>
+                {actionButton("approve", "Approve", "primary")}
+                {actionButton("reject", "Reject", "danger")}
+              </>
+            )}
+            {props.status === "active" && (
+              <>
+                {actionButton("suspend", "Suspend", "ghost")}
+                {actionButton("reject", "Remove", "danger")}
+              </>
+            )}
+            {props.status === "suspended" && (
+              <>
+                {actionButton("approve", "Reactivate", "primary")}
+                {actionButton("reject", "Remove", "danger")}
+              </>
+            )}
+          </form>
+          <Link
+            href={`/admin/members/edit?user_id=${encodeURIComponent(props.user_id)}&country_code=${encodeURIComponent(props.country_code)}&role=${encodeURIComponent(props.role)}`}
+            className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            Edit
+          </Link>
+        </div>
         {state?.ok === false && (
           <p className="mt-1 text-xs text-red-600 dark:text-red-400">
             {state.error}
