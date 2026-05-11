@@ -6,6 +6,7 @@ import type {
   CountryContributorRow,
   CpiSubmissionRow,
 } from "@/lib/community/types";
+import type { CoicopCategory } from "@/lib/types";
 import { ReviewBatch } from "./ReviewBatch";
 import { signOut } from "@/app/actions/auth";
 
@@ -96,6 +97,15 @@ export default async function ReviewQueuePage() {
     for (const b of batches.values()) b.country_name = m.get(b.country_code);
   }
 
+  // COICOP category short-names for the per-row labels in each batch table.
+  const { data: categories } = await supabase
+    .from("coicop_categories")
+    .select("code, name, short_name, description, display_order")
+    .returns<CoicopCategory[]>();
+  const categoryNames = new Map(
+    (categories ?? []).map((c) => [c.code, c.short_name]),
+  );
+
   const batchList = Array.from(batches.values());
 
   return (
@@ -169,6 +179,7 @@ export default async function ReviewQueuePage() {
                 submitted_by={b.submitted_by}
                 submitted_at={b.submitted_at}
                 source_url={b.source_url}
+                categoryNames={Object.fromEntries(categoryNames)}
                 rows={b.rows
                   .slice()
                   .sort((a, c) => a.category_code.localeCompare(c.category_code))}

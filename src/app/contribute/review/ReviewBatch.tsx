@@ -18,6 +18,8 @@ type Props = {
   submitted_at: string;
   source_url: string;
   rows: CpiSubmissionRow[];
+  /** Map of COICOP code → friendly short name. */
+  categoryNames: Record<string, string>;
 };
 
 export function ReviewBatch(props: Props) {
@@ -74,14 +76,19 @@ export function ReviewBatch(props: Props) {
       <table className="w-full text-sm">
         <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-800/50 dark:text-zinc-400">
           <tr>
-            <th className="px-4 py-2">Code</th>
+            <th className="px-4 py-2">Category</th>
             <th className="px-4 py-2 text-right">Index value</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-black/5 dark:divide-white/10">
           {props.rows.map((r) => (
             <tr key={r.id}>
-              <td className="px-4 py-2 font-mono text-xs">{r.category_code}</td>
+              <td className="px-4 py-2">
+                <span className="font-mono text-xs text-zinc-500">{r.category_code}</span>
+                <span className="ml-2">
+                  {props.categoryNames[r.category_code] ?? "—"}
+                </span>
+              </td>
               <td className="px-4 py-2 text-right tabular-nums">
                 {Number(r.index_value).toFixed(4)}
               </td>

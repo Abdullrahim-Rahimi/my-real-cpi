@@ -96,6 +96,15 @@ export default async function ApproveQueuePage() {
     for (const b of batches.values()) b.country_name = m.get(b.country_code);
   }
 
+  // Category short-names for the per-row labels.
+  const { data: categories } = await supabase
+    .from("coicop_categories")
+    .select("code, name, short_name, description, display_order")
+    .returns<CoicopCategory[]>();
+  const categoryNames = Object.fromEntries(
+    (categories ?? []).map((c) => [c.code, c.short_name]),
+  );
+
   const batchList = Array.from(batches.values());
 
   return (
@@ -169,6 +178,7 @@ export default async function ApproveQueuePage() {
                 reviewed_at={b.reviewed_at}
                 reviewer_note={b.reviewer_note}
                 source_url={b.source_url}
+                categoryNames={categoryNames}
                 rows={b.rows
                   .slice()
                   .sort((a, c) => a.category_code.localeCompare(c.category_code))}
