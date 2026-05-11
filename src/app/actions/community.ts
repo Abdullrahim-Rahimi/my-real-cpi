@@ -291,7 +291,19 @@ export async function submitCpiBatch(
   }
 
   const { error } = await supabase.from("cpi_submissions").insert(rows);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    // Postgres unique_violation on the partial index — a non-final submission
+    // for this (country, period) already exists. Surface a clear hint rather
+    // than the raw constraint name.
+    if (error.code === "23505") {
+      return {
+        ok: false,
+        error:
+          "You already have a pending submission for this period. Withdraw it first if you want to submit a correction.",
+      };
+    }
+    return { ok: false, error: error.message };
+  }
 
   after(async () => {
     await notifyNewSubmission({
@@ -466,6 +478,70 @@ export async function approveBatch(
   revalidatePath("/contribute/approve");
   revalidatePath("/dashboard");
   return { ok: true };
+}
+
+// ===========================================================================
+// Withdraw own pending submission.
+// The RLS policy "users withdraw own pending submissions" allows submitters
+// to update their OWN rows whose status is pending_review/pending_approval
+// to status='rejected'. The trigger no longer re-validates submitter on
+// UPDATE (see migration 0013), so a contributor who has since stepped down
+// can still withdraw cleanly.
+// ===========================================================================
+const WithdrawInput = z.object({
+  country_code: z.string().regex(/^[A-Z]{2}$/),
+  period: z.string().regex(/^\d{4}-\d{2}-01$/),
+});
+
+export type WithdrawState =
+  | { ok: true; withdrawn: number }
+  | { ok: false; error: string }
+  | null;
+
+export async function withdrawSubmission(
+  _prev: WithdrawState,
+  formData: FormData,
+): Promise<WithdrawState> {
+  const parsed = WithdrawInput.safeParse({
+    country_code: formData.get("country_code"),
+    period: formData.get("period"),
+  });
+  if (!parsed.success) return { ok: false, error: "Invalid input." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  const { error, count } = await supabase
+    .from("cpi_submissions")
+    .update(
+      {
+        status: "rejected",
+        reviewer_note: "Withdrawn by submitter",
+      },
+      { count: "exact" },
+    )
+    .eq("submitted_by", user.id)
+    .eq("country_code", parsed.data.country_code)
+    .eq("period", parsed.data.period)
+    .in("status", ["pending_review", "pending_approval"]);
+
+  if (error) return { ok: false, error: error.message };
+  if ((count ?? 0) === 0) {
+    return {
+      ok: false,
+      error:
+        "Nothing to withdraw — that submission is either already final, or doesn't exist.",
+    };
+  }
+
+  revalidatePath("/contribute");
+  revalidatePath("/contribute/submit");
+  revalidatePath("/contribute/review");
+  revalidatePath("/contribute/approve");
+  return { ok: true, withdrawn: count ?? 0 };
 }
 
 // ===========================================================================

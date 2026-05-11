@@ -15,6 +15,8 @@ type Props = {
   country_name: string;
   categories: CoicopCategory[]; // includes '00' (headline) + 1..12
   whitelist: { domain: string; description: string | null }[];
+  /** Periods the user already has in-flight (pending review/approval). */
+  pendingPeriods?: string[];
 };
 
 function thisMonthFirstDay(): string {
@@ -27,6 +29,7 @@ export function SubmitCpiForm({
   country_name,
   categories,
   whitelist,
+  pendingPeriods = [],
 }: Props) {
   const [state, formAction, pending] = useActionState(
     submitCpiBatch,
@@ -44,7 +47,9 @@ export function SubmitCpiForm({
     () => categories.every((c) => values[c.code] && Number.isFinite(Number.parseFloat(values[c.code]))),
     [categories, values],
   );
-  const canSubmit = period && sourceUrl && allFilled;
+  const pendingSet = useMemo(() => new Set(pendingPeriods), [pendingPeriods]);
+  const isPeriodPending = pendingSet.has(period);
+  const canSubmit = period && sourceUrl && allFilled && !isPeriodPending;
 
   if (state?.ok) {
     return (
@@ -118,8 +123,19 @@ export function SubmitCpiForm({
                 ? setPeriod(e.target.value + "-01")
                 : setPeriod(thisMonthFirstDay())
             }
-            className="rounded-xl border border-black/10 bg-white px-4 py-3 text-base text-zinc-900 outline-none ring-emerald-500/40 focus:ring-2 dark:border-white/10 dark:bg-zinc-900 dark:text-white"
+            className={
+              "rounded-xl border bg-white px-4 py-3 text-base text-zinc-900 outline-none ring-emerald-500/40 focus:ring-2 dark:bg-zinc-900 dark:text-white " +
+              (isPeriodPending
+                ? "border-amber-400 ring-1 ring-amber-200 dark:border-amber-500/60"
+                : "border-black/10 dark:border-white/10")
+            }
           />
+          {isPeriodPending && (
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              You already have a pending submission for this period. Withdraw
+              it above to submit a correction.
+            </p>
+          )}
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium" htmlFor="source_url">
