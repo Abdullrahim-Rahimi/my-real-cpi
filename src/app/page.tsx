@@ -35,12 +35,27 @@ export default async function Home({
   } = await supabase.auth.getUser();
   if (user) {
     if (next) redirect(next);
-    const { data: profile } = await supabase
-      .from("user_profiles")
-      .select("onboarded_at")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    redirect(profile?.onboarded_at ? "/dashboard" : "/onboarding");
+    const [{ data: profile }, { data: roleRows }] = await Promise.all([
+      supabase
+        .from("user_profiles")
+        .select("onboarded_at")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("country_contributors")
+        .select("role, status")
+        .eq("user_id", user.id),
+    ]);
+    if (profile?.onboarded_at) {
+      redirect("/dashboard");
+    }
+    // Not onboarded — pick the right landing based on whether they have a
+    // community role. Pure end users get the personal-CPI onboarding;
+    // community members get /welcome (which doesn't require onboarding).
+    const hasCommunityRole = (roleRows ?? []).some(
+      (r) => r.status === "active",
+    );
+    redirect(hasCommunityRole ? "/welcome" : "/onboarding");
   }
 
   const isContributeFlow = next === "/contribute";

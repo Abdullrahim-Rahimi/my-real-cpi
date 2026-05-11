@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { hasActiveRole } from "@/lib/community/roles";
+import type { CountryContributorRow } from "@/lib/community/types";
 import type { CoicopCategory, Country, UserSpendingRow } from "@/lib/types";
 import { OnboardingForm } from "./OnboardingForm";
 import { signOut } from "@/app/actions/auth";
@@ -12,7 +14,7 @@ export default async function OnboardingPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
-  const [{ data: countries }, { data: categories }, { data: profile }, { data: spending }] =
+  const [{ data: countries }, { data: categories }, { data: profile }, { data: spending }, { data: roleRows }] =
     await Promise.all([
       supabase
         .from("countries")
@@ -36,7 +38,20 @@ export default async function OnboardingPage() {
         .select("user_id, category_code, monthly_amount")
         .eq("user_id", user.id)
         .returns<UserSpendingRow[]>(),
+      supabase
+        .from("country_contributors")
+        .select("country_code, role, status")
+        .eq("user_id", user.id)
+        .returns<CountryContributorRow[]>(),
     ]);
+
+  const roles = roleRows ?? [];
+  const hasCommunityRole =
+    hasActiveRole(roles, "contributor") ||
+    hasActiveRole(roles, "reviewer") ||
+    hasActiveRole(roles, "approver") ||
+    hasActiveRole(roles, "moderator");
+  const isMod = hasActiveRole(roles, "moderator");
 
   const initialSpending: Record<string, number> = {};
   for (const row of spending ?? []) {
@@ -50,11 +65,27 @@ export default async function OnboardingPage() {
           My Real CPI
         </Link>
         <div className="flex items-center gap-4 text-sm text-zinc-600 dark:text-zinc-400">
+          {hasCommunityRole && (
+            <Link
+              href="/contribute"
+              className="hover:text-zinc-900 dark:hover:text-zinc-100"
+            >
+              Contribute
+            </Link>
+          )}
+          {isMod && (
+            <Link
+              href="/admin"
+              className="hover:text-zinc-900 dark:hover:text-zinc-100"
+            >
+              Admin
+            </Link>
+          )}
           <Link
-            href="/dashboard"
+            href="/welcome"
             className="hover:text-zinc-900 dark:hover:text-zinc-100"
           >
-            Dashboard
+            {hasCommunityRole ? "Skip for now" : "Dashboard"}
           </Link>
           <form action={signOut}>
             <button

@@ -34,7 +34,18 @@ export default async function DashboardPage() {
     .maybeSingle();
 
   if (!profile?.onboarded_at || !profile.country_code) {
-    redirect("/onboarding");
+    // Pre-fetch roles so a community member (contributor / reviewer / etc.)
+    // who hasn't bothered with personal-CPI onboarding lands on /welcome
+    // instead of being trapped in the onboarding loop. They might be on
+    // the platform purely to contribute, not to track their own CPI.
+    const { data: roleRows } = await supabase
+      .from("country_contributors")
+      .select("role, status")
+      .eq("user_id", user.id);
+    const hasCommunityRole = (roleRows ?? []).some(
+      (r) => r.status === "active",
+    );
+    redirect(hasCommunityRole ? "/welcome" : "/onboarding");
   }
 
   const [{ data: country }, { data: categories }, { data: spending }] =
