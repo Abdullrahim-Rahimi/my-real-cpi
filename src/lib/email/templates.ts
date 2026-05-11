@@ -74,35 +74,130 @@ export function newApplication(p: {
 }
 
 // =============================================================================
-// 2. Application decision -> applicant
+// 2. Application / role decision -> applicant
 // =============================================================================
+//
+// Picks one of five "events" based on (decision, previous_status). The
+// distinction matters: "Your application was rejected" reads as an
+// accusation if the user was already an approved member and is just being
+// removed, and "You're now a X" reads weirdly when they're being
+// reactivated after a suspension.
+//
+//   decision    previous_status     event
+//   --------    ---------------     ------------
+//   approve     pending / undef     approved      (first-time approval)
+//   approve     suspended           reactivated
+//   suspend     *                   suspended
+//   reject      pending / undef     rejected      (application denied)
+//   reject      active / suspended  removed
+export type ApplicationEvent =
+  | "approved"
+  | "rejected"
+  | "suspended"
+  | "reactivated"
+  | "removed";
+
+export function deriveApplicationEvent(args: {
+  decision: "approve" | "suspend" | "reject";
+  previous_status?: "pending" | "active" | "suspended";
+}): ApplicationEvent {
+  if (args.decision === "approve") {
+    return args.previous_status === "suspended" ? "reactivated" : "approved";
+  }
+  if (args.decision === "suspend") return "suspended";
+  // decision === "reject"
+  return !args.previous_status || args.previous_status === "pending"
+    ? "rejected"
+    : "removed";
+}
+
 export function applicationDecision(p: {
   country_name: string;
   role: "contributor" | "reviewer" | "approver";
-  decision: "approve" | "suspend" | "reject";
+  event: ApplicationEvent;
 }): Email {
-  const isApproved = p.decision === "approve";
-  const subject = isApproved
-    ? `[My Real CPI] You're now a ${p.role}${p.role === "contributor" ? ` for ${p.country_name}` : ""}`
-    : `[My Real CPI] Your ${p.role} application was ${p.decision}ed`;
+  // For approved/reactivated, the CTA is the queue/submit page that matches
+  // their new role. For terminal events, just a generic site link.
+  const roleQueueCta = {
+    contributor: { label: "Submit your first batch", href: `${SITE}/contribute/submit` },
+    reviewer:    { label: "Open the review queue",   href: `${SITE}/contribute/review` },
+    approver:    { label: "Open the approval queue", href: `${SITE}/contribute/approve` },
+  } as const;
+  const genericCta = { label: "Back to My Real CPI", href: SITE };
+  const isPositive = p.event === "approved" || p.event === "reactivated";
+  const cta = isPositive ? roleQueueCta[p.role] : genericCta;
 
-  const cta = isApproved && p.role === "contributor"
-    ? { label: "Submit your first batch", href: `${SITE}/contribute/submit` }
-    : isApproved && p.role === "reviewer"
-      ? { label: "Open the review queue", href: `${SITE}/contribute/review` }
-      : isApproved && p.role === "approver"
-        ? { label: "Open the approval queue", href: `${SITE}/contribute/approve` }
-        : { label: "Back to My Real CPI", href: SITE };
+  let subject: string;
+  let title: string;
+  let lead: string;
 
-  const lead = isApproved
-    ? `Your ${p.role} application has been approved. ${p.role === "contributor" ? `You can now submit official CPI data for ${p.country_name} each month.` : "You can now act on the queue."}`
-    : `Your ${p.role} application was ${p.decision}ed. If you think this was a mistake, reply to this email.`;
+  switch (p.event) {
+    case "approved":
+      subject = `[My Real CPI] You're now a ${p.role}${p.role === "contributor" ? ` for ${p.country_name}` : ""}`;
+      title = "Application approved";
+      lead =
+        p.role === "contributor"
+          ? `Your contributor application has been approved. You can now submit official CPI data for ${p.country_name} each month.`
+          : `Your ${p.role} application has been approved. You can now act on the queue.`;
+      break;
+    case "reactivated":
+      subject = `[My Real CPI] Your ${p.role} role has been reactivated`;
+      title = "Role reactivated";
+      lead = `A moderator has reactivated your ${p.role} role${p.role === "contributor" ? ` for ${p.country_name}` : ""}. You're back in.`;
+      break;
+    case "rejected":
+      subject = `[My Real CPI] Your ${p.role} application was rejected`;
+      title = "Application rejected";
+      lead = `Your ${p.role} application was rejected. If you think this was a mistake, reply to this email.`;
+      break;
+    case "suspended":
+      subject = `[My Real CPI] Your ${p.role} role has been suspended`;
+      title = "Role suspended";
+      lead = `A moderator has suspended your ${p.role} role${p.role === "contributor" ? ` for ${p.country_name}` : ""}. You won't be able to act in this capacity until it's reactivated. If you think this was a mistake, reply to this email.`;
+      break;
+    case "removed":
+      subject = `[My Real CPI] Your ${p.role} role has been removed`;
+      title = "Role removed";
+      lead = `A moderator has removed your ${p.role} role${p.role === "contributor" ? ` for ${p.country_name}` : ""}. If you think this was a mistake, reply to this email.`;
+      break;
+  }
 
   return {
     subject,
     text: `${lead}\n\n${cta.label}: ${cta.href}`,
     html: shell(
-      isApproved ? "Application approved" : `Application ${p.decision}ed`,
+      title,
+      `<p style="margin:0;line-height:1.5">${escapeHtml(lead)}</p>${button(cta.label, cta.href)}`,
+    ),
+  };
+}
+
+// =============================================================================
+// 2b. Role/country swapped via the admin Edit flow -> member
+// =============================================================================
+export function memberRoleChanged(p: {
+  old_role: "contributor" | "reviewer" | "approver" | "moderator";
+  new_role: "contributor" | "reviewer" | "approver" | "moderator";
+  old_country_name: string;
+  new_country_name: string;
+  same_role: boolean;
+  same_country: boolean;
+}): Email {
+  const summary = p.same_role
+    ? `country changed from ${p.old_country_name} to ${p.new_country_name}`
+    : p.same_country
+      ? `role changed from ${p.old_role} to ${p.new_role}`
+      : `role changed from ${p.old_role} (${p.old_country_name}) to ${p.new_role} (${p.new_country_name})`;
+
+  const subject = `[My Real CPI] Your role has been updated`;
+  const lead = `A moderator has updated your community role — ${summary}.`;
+  const cta = { label: "See your roles", href: `${SITE}/contribute` };
+
+  return {
+    subject,
+    text: `${lead}\n\n${cta.label}: ${cta.href}`,
+    html: shell(
+      "Role updated",
       `<p style="margin:0;line-height:1.5">${escapeHtml(lead)}</p>${button(cta.label, cta.href)}`,
     ),
   };

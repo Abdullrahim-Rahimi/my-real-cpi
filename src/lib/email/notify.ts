@@ -22,6 +22,8 @@ import {
   applicationDecision,
   batchLive,
   batchRejected,
+  deriveApplicationEvent,
+  memberRoleChanged,
   newApplication,
   newSubmissionForReviewers,
   reviewedForApprovers,
@@ -73,20 +75,61 @@ export async function notifyApplicationDecision(args: {
   country_name: string;
   role: "contributor" | "reviewer" | "approver" | "moderator";
   decision: "approve" | "suspend" | "reject";
+  /**
+   * Previous row status — the same `decision` reads very differently depending
+   * on whether this was a pending application or an already-approved member.
+   * Pass it through so the template can pick the right copy.
+   */
+  previous_status?: "pending" | "active" | "suspended";
 }): Promise<void> {
   if (!isEmailConfigured()) return logSkip("notifyApplicationDecision");
   if (args.role === "moderator") return; // not a user-facing flow
   try {
     const recipient = await userEmail(args.user_id);
     if (!recipient) return;
+    const event = deriveApplicationEvent({
+      decision: args.decision,
+      previous_status: args.previous_status,
+    });
     const tmpl = applicationDecision({
       country_name: args.country_name,
       role: args.role,
-      decision: args.decision,
+      event,
     });
     await sendEmail({ to: recipient, ...tmpl });
   } catch (e) {
     console.error(`${TAG} notifyApplicationDecision failed:`, e);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 2b. Member role/country edited → member
+// ---------------------------------------------------------------------------
+export async function notifyMemberRoleChanged(args: {
+  user_id: string;
+  old_role: "contributor" | "reviewer" | "approver" | "moderator";
+  new_role: "contributor" | "reviewer" | "approver" | "moderator";
+  old_country_name: string;
+  new_country_name: string;
+}): Promise<void> {
+  if (!isEmailConfigured()) return logSkip("notifyMemberRoleChanged");
+  const same_role = args.old_role === args.new_role;
+  const same_country = args.old_country_name === args.new_country_name;
+  if (same_role && same_country) return; // nothing meaningful changed
+  try {
+    const recipient = await userEmail(args.user_id);
+    if (!recipient) return;
+    const tmpl = memberRoleChanged({
+      old_role: args.old_role,
+      new_role: args.new_role,
+      old_country_name: args.old_country_name,
+      new_country_name: args.new_country_name,
+      same_role,
+      same_country,
+    });
+    await sendEmail({ to: recipient, ...tmpl });
+  } catch (e) {
+    console.error(`${TAG} notifyMemberRoleChanged failed:`, e);
   }
 }
 

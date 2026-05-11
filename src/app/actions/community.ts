@@ -15,6 +15,7 @@ import type { RoleSnapshot } from "@/lib/community/roles";
 import {
   notifyApplicationDecision,
   notifyApprovalDecision,
+  notifyMemberRoleChanged,
   notifyNewApplication,
   notifyNewSubmission,
   notifyReviewDecision,
@@ -635,14 +636,29 @@ export async function moderateApplication(
   const me = await loadMyRoles();
   if (!me) return { ok: false, error: "Not signed in." };
 
-  // The RLS policy "moderators manage contributors" enforces this at the DB
-  // level. We also check in the app for a clearer error.
   const isMod = me.roles.some(
     (r) => r.role === "moderator" && r.status === "active",
   );
   if (!isMod) return { ok: false, error: "Moderator access required." };
 
   const supabase = await createClient();
+
+  // Capture the row's CURRENT status before mutating so the notification
+  // email can use accurate copy: "Your role has been removed" reads very
+  // differently from "Your application was rejected", and the distinction
+  // is which one the row was in beforehand.
+  const { data: existing } = await supabase
+    .from("country_contributors")
+    .select("status")
+    .eq("user_id", parsed.data.user_id)
+    .eq("country_code", parsed.data.country_code)
+    .eq("role", parsed.data.role)
+    .maybeSingle();
+  const previousStatus = existing?.status as
+    | "pending"
+    | "active"
+    | "suspended"
+    | undefined;
 
   if (parsed.data.decision === "reject") {
     const { error } = await supabase
@@ -670,13 +686,16 @@ export async function moderateApplication(
     if (error) return { ok: false, error: error.message };
   }
 
-  // Email the applicant about the decision.
+  // Email the applicant about the decision — with the previous status so the
+  // template can render the correct event (approved / reactivated / rejected
+  // / suspended / removed).
   after(async () => {
     await notifyApplicationDecision({
       user_id: parsed.data.user_id,
       country_name: await countryName(parsed.data.country_code),
       role: parsed.data.role,
       decision: parsed.data.decision,
+      previous_status: previousStatus,
     });
   });
 
@@ -857,6 +876,28 @@ export async function updateMember(
       };
     }
     return { ok: false, error: error.message };
+  }
+
+  // Notify the member if their role or country actually changed. Status-only
+  // edits are deliberately silent here — they'd duplicate what
+  // moderateApplication's Suspend/Reactivate buttons already cover.
+  const roleChanged = parsed.data.old_role !== parsed.data.new_role;
+  const countryChanged =
+    parsed.data.old_country_code !== parsed.data.new_country_code;
+  if (roleChanged || countryChanged) {
+    after(async () => {
+      const [oldName, newName] = await Promise.all([
+        countryName(parsed.data.old_country_code),
+        countryName(parsed.data.new_country_code),
+      ]);
+      await notifyMemberRoleChanged({
+        user_id: parsed.data.user_id,
+        old_role: parsed.data.old_role,
+        new_role: parsed.data.new_role,
+        old_country_name: oldName,
+        new_country_name: newName,
+      });
+    });
   }
 
   revalidatePath("/admin");
