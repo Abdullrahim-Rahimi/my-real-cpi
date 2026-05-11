@@ -39,6 +39,9 @@ export default async function AdminLayout({
               <Link href="/admin/members" className="hover:text-zinc-900 dark:hover:text-zinc-100">
                 Members
               </Link>
+              <Link href="/admin/data" className="hover:text-zinc-900 dark:hover:text-zinc-100">
+                CPI data
+              </Link>
               <Link href="/admin/whitelist" className="hover:text-zinc-900 dark:hover:text-zinc-100">
                 Source whitelist
               </Link>

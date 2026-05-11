@@ -16,7 +16,7 @@ import type {
   CpiIndexRow,
   UserSpendingRow,
 } from "@/lib/types";
-import { CategoryBreakdownChart } from "./DashboardCharts";
+import { CategoryBreakdownChart, PersonalCpiTimeSeries } from "./DashboardCharts";
 import { NotifyToggle } from "./NotifyToggle";
 import { signOut } from "@/app/actions/auth";
 
@@ -126,11 +126,27 @@ export default async function DashboardPage() {
     if (data) myLatestSubmission = { status: data.status, period: data.period };
   }
 
-  const latestByCat = new Map<string, { yoy_pct: number | null; period: string }>();
+  // Find the "as-of" period: the most recent period where the headline
+  // (category '00') has a YoY value. Without this, the dashboard would
+  // pick the literal latest period — which for sparse community-contributed
+  // data often lacks YoY because the row 12 months prior doesn't exist yet.
+  let asOfPeriod: string | null = null;
   for (const row of cpiRows ?? []) {
-    if (!latestByCat.has(row.category_code)) {
+    if (row.category_code === "00" && row.yoy_pct != null) {
+      asOfPeriod = row.period;
+      break;
+    }
+  }
+
+  // Build the category → YoY lookup pinned to that as-of period so all
+  // categories share a consistent snapshot.
+  const latestByCat = new Map<string, { yoy_pct: number | null; period: string }>();
+  if (asOfPeriod) {
+    for (const row of cpiRows ?? []) {
+      if (row.period !== asOfPeriod) continue;
+      if (row.yoy_pct == null) continue;
       latestByCat.set(row.category_code, {
-        yoy_pct: row.yoy_pct == null ? null : Number(row.yoy_pct),
+        yoy_pct: Number(row.yoy_pct),
         period: row.period,
       });
     }
@@ -149,6 +165,48 @@ export default async function DashboardPage() {
   });
 
   const hasData = result.breakdown.length > 0;
+
+  // Compute the most-recent period in cpi_index regardless of YoY, so the
+  // "data refreshing" empty state can explain that data IS there, just not
+  // anchored against a year-prior baseline yet.
+  const latestAnyPeriod = (cpiRows ?? [])[0]?.period ?? null;
+
+  // Personal-CPI time series — one point per period that has BOTH the user's
+  // spend coverage AND a usable YoY for the headline. Empty/sparse series is
+  // expected for new community countries; the chart component handles it.
+  type SeriesPoint = {
+    period: string;
+    personal_yoy: number;
+    official_yoy: number | null;
+  };
+  const seriesByPeriod = new Map<string, Map<string, number>>(); // period -> (cat -> yoy)
+  for (const row of cpiRows ?? []) {
+    if (row.yoy_pct == null) continue;
+    if (!seriesByPeriod.has(row.period)) {
+      seriesByPeriod.set(row.period, new Map());
+    }
+    seriesByPeriod.get(row.period)!.set(row.category_code, Number(row.yoy_pct));
+  }
+  const series: SeriesPoint[] = [];
+  for (const [period, catYoys] of seriesByPeriod) {
+    let covered = 0;
+    let weighted = 0;
+    for (const cat of divisions) {
+      const amount = spendingMap.get(cat.code) ?? 0;
+      if (amount <= 0) continue;
+      const yoy = catYoys.get(cat.code);
+      if (yoy == null) continue;
+      covered += amount;
+      weighted += amount * yoy;
+    }
+    if (covered <= 0) continue;
+    series.push({
+      period,
+      personal_yoy: weighted / covered,
+      official_yoy: catYoys.get("00") ?? null,
+    });
+  }
+  series.sort((a, b) => a.period.localeCompare(b.period));
   const currency = profile.currency ?? country?.currency ?? "";
 
   return (
@@ -245,20 +303,47 @@ export default async function DashboardPage() {
 
         {!hasData ? (
           <div className="mt-6 rounded-2xl border border-amber-300/40 bg-amber-50 p-6 dark:border-amber-500/30 dark:bg-amber-950/30">
-            <h2 className="text-xl font-semibold">CPI data is refreshing</h2>
-            <p className="mt-2 text-sm text-amber-900 dark:text-amber-100">
-              We don&apos;t yet have CPI by category for {country?.name}. Our
-              auto-ingest covers ~33 countries; for the rest, the community
-              keeps data fresh through the contributor pipeline.
-            </p>
-            <p className="mt-3 text-sm">
-              <Link
-                href="/contribute"
-                className="font-medium text-amber-900 underline underline-offset-2 hover:opacity-80 dark:text-amber-100"
-              >
-                Help bring {country?.name} online →
-              </Link>
-            </p>
+            <h2 className="text-xl font-semibold">
+              {latestAnyPeriod
+                ? "Building your CPI history"
+                : "CPI data is refreshing"}
+            </h2>
+            {latestAnyPeriod ? (
+              <>
+                <p className="mt-2 text-sm text-amber-900 dark:text-amber-100">
+                  We have index data for <strong>{country?.name}</strong>{" "}
+                  through {formatPeriod(latestAnyPeriod)}, but year-on-year
+                  inflation can&apos;t be computed yet — that needs the same
+                  month a year earlier in the dataset. Once 12 months of
+                  history accumulate (via more community submissions or the
+                  monthly cron), your personal CPI will appear here.
+                </p>
+                <p className="mt-3 text-sm">
+                  <Link
+                    href="/contribute/submit"
+                    className="font-medium text-amber-900 underline underline-offset-2 hover:opacity-80 dark:text-amber-100"
+                  >
+                    Submit more historical periods →
+                  </Link>
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="mt-2 text-sm text-amber-900 dark:text-amber-100">
+                  We don&apos;t yet have CPI by category for {country?.name}.
+                  Our auto-ingest covers ~33 countries; for the rest, the
+                  community keeps data fresh through the contributor pipeline.
+                </p>
+                <p className="mt-3 text-sm">
+                  <Link
+                    href="/contribute"
+                    className="font-medium text-amber-900 underline underline-offset-2 hover:opacity-80 dark:text-amber-100"
+                  >
+                    Help bring {country?.name} online →
+                  </Link>
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <>
@@ -323,6 +408,19 @@ export default async function DashboardPage() {
                 </p>
               </div>
             </details>
+
+            {/* Over time */}
+            <section className="mt-10">
+              <h2 className="text-xl font-semibold">Over time</h2>
+              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                Your personal CPI vs the official headline, period by period.
+                Each point uses your <em>current</em> spending mix applied to
+                that period&apos;s category YoYs.
+              </p>
+              <div className="mt-4 rounded-2xl border border-black/5 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-zinc-900/60">
+                <PersonalCpiTimeSeries series={series} />
+              </div>
+            </section>
 
             {/* Breakdown chart */}
             <section className="mt-10">

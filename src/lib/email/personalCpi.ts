@@ -18,7 +18,7 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { computePersonalCpi } from "@/lib/cpi/calculate";
 import { sendEmail, isEmailConfigured } from "./mailgun";
-import { personalCpiUpdate } from "./templates";
+import { personalCpiDataLanded, personalCpiUpdate } from "./templates";
 import { unsubscribeUrl } from "./unsubscribe";
 import type { CoicopCategory, CpiIndexRow, UserSpendingRow } from "@/lib/types";
 
@@ -104,8 +104,9 @@ export async function notifyPersonalCpiForCountry(args: {
     }
   }
 
-  // Confirm we actually have data for the requested period — otherwise the
-  // upstream caller is mistaken and we shouldn't email anything.
+  // Confirm we have at least an index value for the requested period (we
+  // don't require YoY anymore — the "data landed" template covers periods
+  // without YoY).
   const headlineForPeriod = (cpiRows ?? []).find(
     (r) => r.category_code === "00" && r.period === args.period,
   );
@@ -164,10 +165,6 @@ export async function notifyPersonalCpiForCountry(args: {
         spending,
         cpiByCategory: latestByCat,
       });
-      if (computed.breakdown.length === 0) {
-        r.skipped_no_data++;
-        continue;
-      }
 
       // Look up the recipient's email via auth admin API.
       const { data: userRes } = await supabase.auth.admin.getUserById(
@@ -179,26 +176,41 @@ export async function notifyPersonalCpiForCountry(args: {
         continue;
       }
 
-      // Build top movers (categories that contributed most to personal CPI).
-      const topMovers = computed.breakdown
-        .slice()
-        .sort((a, b) => Math.abs(b.contribution_pct) - Math.abs(a.contribution_pct))
-        .slice(0, 3)
-        .map((b) => ({
-          short_name: b.short_name,
-          yoy_pct: b.yoy_pct,
-          weight: b.user_weight,
-        }));
+      // Pick the right template variant. If the user's spending intersects
+      // with at least one category that has a usable YoY, send the full
+      // personal-CPI breakdown. Otherwise send the lighter "new data
+      // landed, YoY pending" notice — so users hear something either way.
+      let tmpl: { subject: string; text: string; html?: string };
+      if (computed.breakdown.length === 0) {
+        tmpl = personalCpiDataLanded({
+          country_name: countryName,
+          period: args.period,
+          unsubscribe_url: unsubscribeUrl(p.user_id as string),
+        });
+      } else {
+        const topMovers = computed.breakdown
+          .slice()
+          .sort(
+            (a, b) =>
+              Math.abs(b.contribution_pct) - Math.abs(a.contribution_pct),
+          )
+          .slice(0, 3)
+          .map((b) => ({
+            short_name: b.short_name,
+            yoy_pct: b.yoy_pct,
+            weight: b.user_weight,
+          }));
 
-      const tmpl = personalCpiUpdate({
-        country_name: countryName,
-        period: args.period,
-        personal_yoy_pct: computed.personal_yoy_pct,
-        official_yoy_pct: computed.official_yoy_pct,
-        coverage_pct: computed.coverage_pct,
-        top_movers: topMovers,
-        unsubscribe_url: unsubscribeUrl(p.user_id as string),
-      });
+        tmpl = personalCpiUpdate({
+          country_name: countryName,
+          period: args.period,
+          personal_yoy_pct: computed.personal_yoy_pct,
+          official_yoy_pct: computed.official_yoy_pct,
+          coverage_pct: computed.coverage_pct,
+          top_movers: topMovers,
+          unsubscribe_url: unsubscribeUrl(p.user_id as string),
+        });
+      }
 
       const send = await sendEmail({ to: email, ...tmpl });
       if (send.ok) {

@@ -281,6 +281,38 @@ export function batchRejected(p: {
 }
 
 // =============================================================================
+// 6b. "Data landed, YoY not computable yet" -> end users
+// =============================================================================
+//
+// Sent when a new period's CPI is approved/ingested but year-on-year inflation
+// can't be computed for the user's basket — usually because the country is
+// new in the database and the row 12 months prior doesn't exist. Without
+// this variant the user would get no email at all for that period.
+export function personalCpiDataLanded(p: {
+  country_name: string;
+  period: string;
+  unsubscribe_url: string;
+}): Email {
+  const periodLabel = fmtPeriod(p.period);
+  const subject = `[My Real CPI] New ${periodLabel} data is in for ${p.country_name}`;
+  const lead = `New CPI numbers landed for ${p.country_name}, ${periodLabel}. Year-on-year inflation isn't computable yet — that needs the same month a year earlier in the dataset. As more historical periods accumulate (via the monthly auto-ingest or community submissions), your personal CPI will appear on the dashboard.`;
+  const text = [
+    lead,
+    "",
+    `View the dashboard: ${SITE}/dashboard`,
+    "",
+    `Don't want these emails? Unsubscribe: ${p.unsubscribe_url}`,
+  ].join("\n");
+  const html = shell(
+    `New data for ${p.country_name}`,
+    `<p style="margin:0 0 12px;line-height:1.5">${escapeHtml(lead)}</p>
+${button("Open dashboard", `${SITE}/dashboard`)}
+<p style="margin:32px 0 0;font-size:11px;color:#a3a3a3">Don't want these emails? <a href="${escapeHtml(p.unsubscribe_url)}" style="color:#a3a3a3">Unsubscribe</a>.</p>`,
+  );
+  return { subject, text, html };
+}
+
+// =============================================================================
 // 6. Monthly personal-CPI update -> end users
 // =============================================================================
 export function personalCpiUpdate(p: {

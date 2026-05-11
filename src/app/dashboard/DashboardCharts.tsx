@@ -5,6 +5,9 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Legend,
+  Line,
+  LineChart,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -86,6 +89,89 @@ export function CategoryBreakdownChart({
             ))}
           </Bar>
         </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// Personal CPI over time — one point per period that has YoY for the
+// headline AND coverage of the user's spending. Empty/sparse series renders
+// as an empty-state card instead of a chart.
+export type SeriesPoint = {
+  period: string;
+  personal_yoy: number;
+  official_yoy: number | null;
+};
+
+export function PersonalCpiTimeSeries({ series }: { series: SeriesPoint[] }) {
+  if (series.length < 2) {
+    return (
+      <div className="rounded-2xl border border-black/5 bg-white p-6 text-sm text-zinc-600 shadow-sm dark:border-white/10 dark:bg-zinc-900/60 dark:text-zinc-400">
+        <p className="font-medium text-zinc-800 dark:text-zinc-200">
+          Not enough history yet.
+        </p>
+        <p className="mt-1">
+          {series.length === 0
+            ? "We'll plot your personal CPI here once data lands for at least two periods with year-on-year inflation."
+            : "We have one period with YoY data so far — a second one will start the line."}
+        </p>
+      </div>
+    );
+  }
+
+  const data = series.map((s) => ({
+    period: new Date(s.period).toLocaleDateString("en-US", {
+      month: "short",
+      year: "2-digit",
+    }),
+    personal: Number(s.personal_yoy.toFixed(2)),
+    official: s.official_yoy != null ? Number(s.official_yoy.toFixed(2)) : null,
+  }));
+
+  return (
+    <div className="h-[280px] w-full">
+      <ResponsiveContainer>
+        <LineChart data={data} margin={{ top: 10, right: 24, bottom: 8, left: 0 }}>
+          <CartesianGrid stroke="rgb(0 0 0 / 0.06)" />
+          <XAxis
+            dataKey="period"
+            tick={{ fontSize: 12, fill: "currentColor" }}
+            stroke="currentColor"
+          />
+          <YAxis
+            tickFormatter={(v) => `${v}%`}
+            tick={{ fontSize: 12, fill: "currentColor" }}
+            stroke="currentColor"
+            width={48}
+          />
+          <Tooltip
+            contentStyle={{ borderRadius: 8, border: "1px solid rgba(0,0,0,0.08)" }}
+            formatter={(value) => {
+              const n = typeof value === "number" ? value : Number(value);
+              return Number.isFinite(n) ? `${n.toFixed(2)}%` : "—";
+            }}
+          />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Line
+            type="monotone"
+            dataKey="personal"
+            name="Your CPI"
+            stroke="#059669"
+            strokeWidth={2.5}
+            dot={{ r: 3 }}
+            activeDot={{ r: 5 }}
+          />
+          <Line
+            type="monotone"
+            dataKey="official"
+            name="Official"
+            stroke="#737373"
+            strokeWidth={2}
+            strokeDasharray="4 3"
+            dot={{ r: 2 }}
+            connectNulls
+          />
+        </LineChart>
       </ResponsiveContainer>
     </div>
   );
